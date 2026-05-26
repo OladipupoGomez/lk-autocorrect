@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lk-autocorrect"
+version = "1.2.0"
+description = "Fuzzy autocorrect for mistyped Linux/macOS shell commands. Works in bash and zsh."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.9"
+keywords = ["shell", "bash", "zsh", "autocorrect", "cli", "typo", "fuzzy"]
+authors = [
+  { name = "Oladipupo Gomez", email = "oladipupogomez5@gmail.com" }
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Utilities",
+]
+
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/OladipupoGomez/lk-autocorrect"
+Repository = "https://github.com/OladipupoGomez/lk-autocorrect"
+Issues = "https://github.com/OladipupoGomez/lk-autocorrect/issues"
+Changelog = "https://github.com/OladipupoGomez/lk-autocorrect/blob/main/CHANGELOG.md"
+
+[project.scripts]
+lk-autocorrect = "src.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+# include shell script and matcher in the package
+[tool.setuptools.package-data]
+src = ["autocorrect.sh", "matcher.py"]
