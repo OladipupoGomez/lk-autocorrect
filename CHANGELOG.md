@@ -2,7 +2,7 @@
 
 All notable changes and future updates will be documented here.
 
-## [1.2.0] — 2025-05-26
+## [1.2.0] — 2026-05-26
 
 ### Added
 - Initial release
