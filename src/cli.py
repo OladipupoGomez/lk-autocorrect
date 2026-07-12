@@ -10,7 +10,7 @@ import shutil
 from pathlib import Path
 
 # Constants
-VERSION     = "1.0.0"
+VERSION     = "1.2.0"
 INSTALL_DIR = Path.home() / ".lk-autocorrect"
 CONFIG_DIR  = Path.home() / ".config" / "lk-autocorrect"
 MARKER      = "# lk-autocorrect"
