@@ -9,6 +9,12 @@ import sys
 import shutil
 from pathlib import Path
 
+# Fix Windows console encoding
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
 # Constants
 VERSION      = "1.3.0b1"
 PACKAGE_DIR  = Path(__file__).parent
@@ -228,8 +234,8 @@ def status():
         _, ps7, _ = detect_shell()
         installed = SCRIPT_PS1.exists()
         injected  = is_injected(ps7)
-        print(f"  Script:    {green('✓ installed') if installed else red('✗ not installed')}")
-        print(f"  Profile:   {green('✓ yes') if injected else red('✗ no')}")
+        print(f"  Script:    {green('OK installed') if installed else red('NOT installed')}")
+        print(f"  Profile:   {green('OK yes') if injected else red('NOT no')}")
     else:
         _, rc, _ = detect_shell()
         shell_name = detect_shell()[0]
@@ -237,8 +243,8 @@ def status():
         injected  = is_injected(rc)
         print(f"  Shell:     {bold(shell_name)}")
         print(f"  RC file:   {bold(str(rc))}")
-        print(f"  Script:    {green('✓ installed') if installed else red('✗ not installed')}")
-        print(f"  Sourced:   {green('✓ yes') if injected else red('✗ no')}")
+        print(f"  Script:    {green('OK installed') if installed else red('NOT installed')}")
+        print(f"  Sourced:   {green('OK yes') if injected else red('NOT no')}")
     print()
 
 # Verify
@@ -254,16 +260,16 @@ def verify():
     all_ok = True
     for path in files:
         if not path.exists():
-            print(f"  {red('✗')} {path.name} — missing")
+            print(f"  {red('!!')} {path.name} — missing")
             all_ok = False
             continue
         if path.is_symlink():
-            print(f"  {red('✗')} {path.name} — symlink detected")
+            print(f"  {red('!!')} {path.name} — symlink detected")
             all_ok = False
             continue
         mode = oct(stat.S_IMODE(path.stat().st_mode))
         sha  = hashlib.sha256(path.read_bytes()).hexdigest()
-        print(f"  {green('✓')} {path.name} (perms: {mode})")
+        print(f"  {green('OK')} {path.name} (perms: {mode})")
         print(f"    sha256: {sha}")
 
     if is_windows():
@@ -275,9 +281,9 @@ def verify():
 
     profile_label = "$PROFILE" if is_windows() else str(detect_shell()[1])
     if injected:
-        print(f"  {green('✓')} {profile_label} — source line present")
+        print(f"  {green('OK')} {profile_label} — source line present")
     else:
-        print(f"  {red('✗')} {profile_label} — missing, run: lk-autocorrect install")
+        print(f"  {red('!!')} {profile_label} — missing, run: lk-autocorrect install")
         all_ok = False
 
     print()
@@ -319,7 +325,7 @@ def help():
 def main():
     # Python version warning
     _PY = sys.version_info
-    if _PY < (3, 10):
+    if _PY < (3, 11):
         print(f"{yellow('[lk-autocorrect]')} Python {_PY.major}.{_PY.minor} is end-of-life or approaching it. lk-autocorrect works but consider upgrading.")
 
     args = sys.argv[1:]
