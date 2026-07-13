@@ -27,7 +27,7 @@ $ terrafrom plan
 ## Requirements
 
 - **macOS** or **Linux** (zsh or bash) — check with `echo $SHELL`
-- **Python 3.9+** — check with `python3 --version`
+- **Python 3.11+** — check with `python3 --version`
 - **Windows** — PowerShell 5 or PowerShell 7 
 
 ---
@@ -157,7 +157,7 @@ chsh -s /opt/homebrew/bin/bash
 
 ## Python version
 
-lk-autocorrect requires Python 3.9+ and is supported on older versions, but upgrading to 3.13+ is recommended since older versions no longer receive security patches.
+lk-autocorrect requires Python 3.11+ and is supported on older versions, but upgrading to 3.13+ is recommended since older versions no longer receive security patches.
 
 **Check your version:**
 ```bash

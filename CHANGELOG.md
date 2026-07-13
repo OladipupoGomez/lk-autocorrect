@@ -14,15 +14,17 @@ All notable changes and future updates will be documented here.
 - `cli.py` updated to detect platform (Windows / WSL / Unix) and install the correct script
 - PowerShell profile injection — adds source line to both PS7 and PS5 profiles automatically
 - Execution policy guidance shown on Windows install
-- GitHub Actions now tests on `windows-latest` across Python 3.9, 3.11, 3.13
+- GitHub Actions now tests on `windows-latest` across Python 3.11, 3.13
 - Removed `os = ["linux", "darwin"]` restriction from `pyproject.toml` — package now installs on all platforms
 
 ### Fixed
 - WSL users no longer blocked by Windows OS check in installer
+- Unicode encoding error on Windows — replaced `✓`/`✗` with ASCII equivalents for CP1252 compatibility
 
-# Changelog
+### Changed
+- Minimum Python version bumped from 3.9 to 3.11 — Python 3.9 and 3.10 caused installation failures on Windows GitHub Actions runners and are approaching end-of-life. Python 3.11+ is stable, widely available, and supported across all platforms
 
-All notable changes will be documented here.
+---
 
 ## [1.0.0] — 2026-05-26
 
