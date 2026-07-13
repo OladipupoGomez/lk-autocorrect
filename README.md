@@ -80,21 +80,39 @@ kubctl get pods   # → Did you mean: kubectl get pods?
 pip install lk-autocorrect
 ```
 
-**Step 2 — Run the installer**
+**Step 2 — Add lk-autocorrect to PATH**
+
+After installing, if PowerShell cannot find `lk-autocorrect` run the following commands.
+This will find where pip installed it and add it to your PATH permanently:
+
+```powershell
+# find where pip installed lk-autocorrect
+pip show lk-autocorrect
+
+# add Scripts folder to PATH permanently
+$scriptsPath = (pip show lk-autocorrect | Select-String "Location").Line.Split(" ")[1] + "\..\..\Scripts"
+$env:PATH += ";$scriptsPath"
+```
+
+> This adds the Python Scripts folder to your PATH so `lk-autocorrect` can be found.
+> Open a new PowerShell window after running this or restart after running this.
+
+**Step 3 — Run the installer**
 
 ```powershell
 lk-autocorrect install
 ```
 
 This automatically adds the source line to your PowerShell profile (`$PROFILE`).
+After install you will see the PATH commands printed — run them if `lk-autocorrect` is not found.
 
-**Step 3 — Reload your profile**
+**Step 4 — Reload your profile**
 
 ```powershell
 . $PROFILE
 ```
 
-**Step 4 — Test it**
+**Step 5 — Test it**
 
 ```powershell
 gti status        # → Did you mean: git status?

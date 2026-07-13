@@ -383,17 +383,17 @@ function ac-test {
 
 function ac-help {
     Write-Host ""
-    Write-Host "  lk-autocorrect — fuzzy CLI command correction"
+    Write-Host "  lk-autocorrect - fuzzy CLI command correction"
     Write-Host ""
     Write-Host "  Commands:"
-    Write-Host "    ac-add <cmd>      Add a command to the store"
-    Write-Host "    ac-remove <cmd>   Remove a command from the store"
+    Write-Host "    ac-add [cmd]      Add a command to the store"
+    Write-Host "    ac-remove [cmd]   Remove a command from the store"
     Write-Host "    ac-list           List all commands in the store"
-    Write-Host "    ac-test <typo>    Preview what a typo would match"
+    Write-Host "    ac-test [typo]    Preview what a typo would match"
     Write-Host "    ac-help           Show this help"
     Write-Host ""
     Write-Host "  Config (set in your PowerShell profile):"
-    Write-Host '    $env:AUTOCORRECT_THRESHOLD = "2"'
-    Write-Host '    $env:AUTOCORRECT_AUTO = "true"'
+    Write-Host "    " + '$env:AUTOCORRECT_THRESHOLD = "2"'
+    Write-Host "    " + '$env:AUTOCORRECT_AUTO = "true"'
     Write-Host ""
 }
