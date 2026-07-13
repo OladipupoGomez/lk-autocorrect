@@ -161,9 +161,12 @@ def _install_windows():
     print(f"  Then try: {bold('gti status')}\n")
     print(f"{TAG} Note: if you see a script execution error run:\n")
     print(f"    {bold('Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser')}\n")
-    print(f"{TAG} If lk-autocorrect is not found, add it to PATH:\n")
-    print(f"    {bold('$scriptsPath = (pip show lk-autocorrect | Select-String "Location").Line.Split(" ")[1] + "\\..\\..\\Scripts"')}\n")
-    print(f"    {bold('$env:PATH += ";$scriptsPath"')}\n")
+    print(f"{TAG} If lk-autocorrect is not found after install, add it to PATH:\n")
+    # use variables to avoid f-string quote conflicts
+    path_cmd1 = '$scriptsPath = (pip show lk-autocorrect | Select-String "Location").Line.Split(" ")[1] + "\\..\\..\\Scripts"'
+    path_cmd2 = '$env:PATH += ";$scriptsPath"'
+    print(f"    {bold(path_cmd1)}\n")
+    print(f"    {bold(path_cmd2)}\n")
     print(f"  Then open a new PowerShell window.\n")
 
 # Auto install (postinstall hook)
