@@ -2,6 +2,15 @@
 
 All notable changes and future updates will be documented here.
 
+## [1.3.0-beta5] — 2026-07-13
+
+### Fixed
+- `upgrade` re-exec was calling `-m lk_autocorrect.cli` which does not exist — the actual package module is `src`, causing `ModuleNotFoundError: No module named 'lk_autocorrect'` on both macOS (pipx) and Windows (pip) immediately after every upgrade. Fixed by resolving the installed `lk-autocorrect` console script directly via `shutil.which()` instead of hardcoding an internal module path — this also makes the fix immune to any future package/module renaming
+
+### Added
+- `install` now warns when lk-autocorrect is already installed and configured (shell script exists AND RC/profile is already injected), pointing the user to `lk-autocorrect upgrade` or `lk-autocorrect uninstall` instead of silently re-running with no clear signal that nothing changed
+
+
 ## [1.3.0-beta4] — 2026-07-13
 
 ### Added

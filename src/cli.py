@@ -122,6 +122,22 @@ def _verify_pip_package():
         return False, None
 
 # Install
+def _already_installed():
+    """
+    Checks whether lk-autocorrect appears to be fully set up already:
+    the shell script exists on disk AND the shell RC / PowerShell
+    profile has the source line injected.
+    """
+    if is_windows():
+        script_exists = SCRIPT_PS1.exists()
+        _, ps7, _ = detect_shell()
+        injected = is_injected(ps7)
+    else:
+        script_exists = SCRIPT_SH.exists()
+        _, rc, _ = detect_shell()
+        injected = is_injected(rc)
+    return script_exists and injected
+
 def install():
     print(f"\n{bold('lk-autocorrect')} v{VERSION}\n")
     print(f"{TAG} Platform: {bold(PLATFORM)}")
@@ -134,7 +150,15 @@ def install():
         sys.exit(1)
     if pip_version and pip_version != VERSION:
         print(f"{TAG} Note: pip reports v{pip_version}, running code is v{VERSION}.")
-        print(f"{TAG} If these differ, run: {bold('lk-autocorrect update')}\n")
+        print(f"{TAG} If these differ, run: {bold('lk-autocorrect upgrade')}\n")
+
+    # warn if already fully installed and set up — re-running is safe
+    # (files get overwritten, RC injection is skipped) but the user
+    # should know nothing new is actually happening
+    if _already_installed():
+        print(f"{TAG} lk-autocorrect is already installed and set up (v{VERSION}).")
+        print(f"{TAG} Use {bold('lk-autocorrect upgrade')} to update,")
+        print(f"{TAG} or {bold('lk-autocorrect uninstall')} to remove.\n")
 
     # verify source files exist before copying
     for f in ["autocorrect.sh", "autocorrect.ps1", "matcher.py"]:
@@ -346,7 +370,7 @@ def _detect_installer():
         return "pipx"
     return "pip"
 
-# ── Upgrade ───────────────────────────────────────────
+# Upgrade
 def upgrade(version=None, include_pre=False):
     import subprocess
 
@@ -395,7 +419,16 @@ def upgrade(version=None, include_pre=False):
     # (not the stale copy already loaded in this process) runs the install.
     # Without this the user would need to manually re-run the command,
     # since Python does not reload already-imported modules mid-process.
-    result = subprocess.run([sys.executable, "-m", "lk_autocorrect.cli", "install"])
+    # We call the installed console script directly ("lk-autocorrect")
+    # rather than "-m <module>" so this keeps working even if the
+    # internal package/module name ever changes.
+    lk_autocorrect_bin = shutil.which("lk-autocorrect")
+    if lk_autocorrect_bin:
+        result = subprocess.run([lk_autocorrect_bin, "install"])
+    else:
+        print(f"{ERR} Could not find 'lk-autocorrect' on PATH after upgrade.")
+        print(f"{TAG} Run manually: {bold('lk-autocorrect install')}\n")
+        sys.exit(1)
     sys.exit(result.returncode)
 
 # Help

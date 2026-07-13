@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lk-autocorrect"
-version = "1.3.0b4"
+version = "1.3.0b5"
 description = "Fuzzy autocorrect for mistyped Linux/macOS shell commands. Works in bash and zsh."
 readme = "README.md"
 license = "MIT"
