@@ -1,29 +1,42 @@
 # Settings
-$env:AUTOCORRECT_DIR    = if ($env:AUTOCORRECT_DIR) { $env:AUTOCORRECT_DIR } else { "$env:USERPROFILE\.config\lk-autocorrect" }
-$env:AUTOCORRECT_STORE  = "$env:AUTOCORRECT_DIR\commands.txt"
-$env:AUTOCORRECT_THRESHOLD = if ($env:AUTOCORRECT_THRESHOLD) { $env:AUTOCORRECT_THRESHOLD } else { "2" }
-$env:AUTOCORRECT_AUTO   = if ($env:AUTOCORRECT_AUTO) { $env:AUTOCORRECT_AUTO } else { "false" }
-$_AC_MATCHER            = "$env:AUTOCORRECT_DIR\matcher.py"
+if (-not $env:AUTOCORRECT_DIR)    { $env:AUTOCORRECT_DIR    = "$env:USERPROFILE\.config\lk-autocorrect" }
+if (-not $env:AUTOCORRECT_STORE)  { $env:AUTOCORRECT_STORE  = "$env:AUTOCORRECT_DIR\commands.txt" }
+if (-not $env:AUTOCORRECT_THRESHOLD) { $env:AUTOCORRECT_THRESHOLD = "2" }
+if (-not $env:AUTOCORRECT_AUTO)   { $env:AUTOCORRECT_AUTO   = "false" }
+
+$_AC_MATCHER = "$env:AUTOCORRECT_DIR\matcher.py"
+
+# Colors
+function _ac_yellow($msg) {
+    Write-Host "[lk-autocorrect] " -ForegroundColor Yellow -NoNewline
+    Write-Host $msg -ForegroundColor Yellow
+}
+function _ac_green($msg) {
+    Write-Host "[lk-autocorrect] " -ForegroundColor Green -NoNewline
+    Write-Host $msg -ForegroundColor Green
+}
+function _ac_red($msg) {
+    Write-Host "[lk-autocorrect] " -ForegroundColor Red -NoNewline
+    Write-Host $msg -ForegroundColor Red
+}
+# Prints the tag in yellow, then prompts on the same line and returns the answer
+function _ac_yellow_prompt($msg) {
+    Write-Host "[lk-autocorrect] " -ForegroundColor Yellow -NoNewline
+    return Read-Host $msg
+}
 
 # Find Python
 function _ac_find_python {
     foreach ($cmd in @("python", "python3", "py")) {
         try {
             $ver = & $cmd --version 2>&1
-            if ($ver -match "Python 3\.") {
-                return $cmd
-            }
+            if ($ver -match "Python 3\.") { return $cmd }
         } catch {}
     }
     return $null
 }
 
 $_AC_PYTHON = _ac_find_python
-
-# Colors
-function _ac_yellow($s) { Write-Host "[lk-autocorrect] " -ForegroundColor Yellow -NoNewline; $s }
-function _ac_green($s)  { Write-Host "[lk-autocorrect] " -ForegroundColor Green  -NoNewline; $s }
-function _ac_red($s)    { Write-Host "[lk-autocorrect] " -ForegroundColor Red    -NoNewline; $s }
 
 # Bootstrap store and matcher
 function _ac_setup {
@@ -54,11 +67,10 @@ if not typo:
 if re.search(r'[;&|`$(){}<>\\\'"!]', typo):
     sys.exit(0)
 
-expected_dir = os.path.abspath(os.path.expanduser("~/.config/lk-autocorrect"))
-# Windows path support
-win_expected = os.path.abspath(os.path.join(os.environ.get("USERPROFILE", ""), ".config", "lk-autocorrect"))
+expected_unix = os.path.abspath(os.path.expanduser("~/.config/lk-autocorrect"))
+expected_win  = os.path.abspath(os.path.join(os.environ.get("USERPROFILE", ""), ".config", "lk-autocorrect"))
 store_abs = os.path.abspath(store)
-if not (store_abs.startswith(expected_dir) or store_abs.startswith(win_expected)):
+if not (store_abs.startswith(expected_unix) or store_abs.startswith(expected_win)):
     sys.exit(1)
 
 if not os.path.isfile(store) or os.path.islink(store):
@@ -78,13 +90,9 @@ def levenshtein(s, t):
     for i in range(1, m + 1):
         for j in range(1, n + 1):
             cost = 0 if s[i-1] == t[j-1] else 1
-            dp[i][j] = min(
-                dp[i-1][j] + 1,
-                dp[i][j-1] + 1,
-                dp[i-1][j-1] + cost
-            )
+            dp[i][j] = min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+cost)
             if i > 1 and j > 1 and s[i-1] == t[j-2] and s[i-2] == t[j-1]:
-                dp[i][j] = min(dp[i][j], dp[i-2][j-2] + cost)
+                dp[i][j] = min(dp[i][j], dp[i-2][j-2]+cost)
     return dp[m][n]
 
 best_cmd  = ""
@@ -94,12 +102,9 @@ try:
     with open(store, 'r', encoding='utf-8', errors='ignore') as f:
         for line in f:
             line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            if re.search(r'[;&|`$(){}<>!]', line):
-                continue
-            if len(line) > 100:
-                continue
+            if not line or line.startswith('#'): continue
+            if re.search(r'[;&|`$(){}<>!]', line): continue
+            if len(line) > 100: continue
             first_word = line.split()[0]
             d = levenshtein(typo, first_word)
             if d < best_dist:
@@ -276,108 +281,120 @@ Invoke-WebRequest
 _ac_setup
 
 if (-not $_AC_PYTHON) {
-    Write-Host "[lk-autocorrect] " -ForegroundColor Red -NoNewline
-    Write-Host "Python 3 not found. Install from https://python.org"
+    _ac_red "Python 3 not found. Install from https://python.org"
     return
 }
 
-# Core handler
+# CommandNotFoundAction hook
 $ExecutionContext.InvokeCommand.CommandNotFoundAction = {
     param($name, $eventArgs)
 
     # skip empty, paths, flags
     if (-not $name) { return }
     if ($name.StartsWith("-") -or $name.StartsWith("/") -or $name.StartsWith(".")) { return }
-
-    # block injection characters
-    if ($name -match '[;&|`$(){}<>"'']') { return }
-
-    # cap length
+    if ($name -match '[;&|`$(){}<>"]') { return }
     if ($name.Length -gt 50) { return }
+
+    # get the args PowerShell was going to pass to the missing command
+    $invocationLine = (Get-PSCallStack | Select-Object -First 1).InvocationInfo.Line
+    if (-not $invocationLine) { $invocationLine = $name }
+    $trimmedLine = $invocationLine.Trim()
+    $argTokens = @()
+    if ($trimmedLine.Length -gt $name.Length) {
+        $rest = $trimmedLine.Substring($name.Length).Trim()
+        if ($rest) { $argTokens = $rest -split '\s+' }
+    }
 
     # run matcher
     $result = & $_AC_PYTHON $_AC_MATCHER $name $env:AUTOCORRECT_STORE $env:AUTOCORRECT_THRESHOLD 2>$null
-
-    if (-not $result) {
-        $eventArgs.StopSearch = $false
-        return
-    }
+    if (-not $result) { return }
 
     $parts      = $result -split "\|\|\|"
     $suggestion = $parts[0]
     $dist       = $parts[1]
+    if ($dist -eq "0") { return }
 
-    # skip distance 0 — exact match means not installed
-    if ($dist -eq "0") {
-        $eventArgs.StopSearch = $false
-        return
-    }
+    $suggestionParts = $suggestion -split " "
+    $suggestedCmd    = $suggestionParts[0]
+    $suggestedArgs   = @()
+    if ($suggestionParts.Count -gt 1) { $suggestedArgs = $suggestionParts[1..($suggestionParts.Count-1)] }
 
+    $finalArgs  = $suggestedArgs + $argTokens
+    $displayCmd = if ($finalArgs.Count -gt 0) { "$suggestedCmd $($finalArgs -join ' ')" } else { $suggestedCmd }
+
+    # tag in yellow, "Did you mean:" in yellow, the command itself in cyan
     Write-Host "[lk-autocorrect] " -ForegroundColor Yellow -NoNewline
-    Write-Host "Did you mean: " -NoNewline
-    Write-Host $suggestion -ForegroundColor Cyan -NoNewline
+    Write-Host "Did you mean: " -ForegroundColor Yellow -NoNewline
+    Write-Host $displayCmd -ForegroundColor Cyan -NoNewline
     Write-Host "?"
 
+    $run = $false
     if ($env:AUTOCORRECT_AUTO -eq "true") {
-        Write-Host "[lk-autocorrect] Running..." -ForegroundColor Yellow
-        Invoke-Expression $suggestion
+        _ac_yellow "Running..."
+        $run = $true
     } else {
-        Write-Host "[lk-autocorrect] " -ForegroundColor Yellow -NoNewline
-        $answer = Read-Host "Run it? [y/N]"
-        if ($answer -match "^[Yy]$") {
-            Invoke-Expression $suggestion
-        }
+        $answer = _ac_yellow_prompt "Run it? [y/N]"
+        if ($answer -match "^[Yy]$") { $run = $true }
     }
 
-    $eventArgs.StopSearch = $true
+    if ($run) {
+        # this is the officially supported mechanism — assigning a
+        # script block here tells PowerShell to run THIS instead of
+        # throwing CommandNotFoundException.
+        $capturedCmd  = $suggestedCmd
+        $capturedArgs = $finalArgs
+        $eventArgs.CommandScriptBlock = {
+            & $capturedCmd @capturedArgs
+        }.GetNewClosure()
+    } else {
+        # user declined — let PowerShell show its normal error
+        return
+    }
 }
 
 # Public functions
 
 function ac-add {
     param([string]$cmd)
-    if (-not $cmd) { Write-Host "Usage: ac-add <command>"; return }
+    if (-not $cmd) { Write-Host "Usage: ac-add [command]"; return }
     if ($cmd -match '[;&|`$(){}<>"'']') {
-        Write-Host "[lk-autocorrect] Invalid characters in command" -ForegroundColor Red
-        return
+        _ac_red "Invalid characters in command"; return
     }
     if ($cmd.Length -gt 50) {
-        Write-Host "[lk-autocorrect] Command too long (max 50 chars)" -ForegroundColor Red
-        return
+        _ac_red "Command too long (max 50 chars)"; return
     }
     $existing = Get-Content $env:AUTOCORRECT_STORE | Where-Object { $_ -eq $cmd }
     if ($existing) {
-        Write-Host "[lk-autocorrect] '$cmd' already in store" -ForegroundColor Yellow
-        return
+        _ac_yellow "'$cmd' already in store"; return
     }
     Add-Content -Path $env:AUTOCORRECT_STORE -Value $cmd
-    Write-Host "[lk-autocorrect] Added '$cmd'" -ForegroundColor Green
+    _ac_green "Added '$cmd'"
 }
 
 function ac-remove {
     param([string]$cmd)
-    if (-not $cmd) { Write-Host "Usage: ac-remove <command>"; return }
+    if (-not $cmd) { Write-Host "Usage: ac-remove [command]"; return }
     $lines = Get-Content $env:AUTOCORRECT_STORE | Where-Object { $_ -ne $cmd }
     Set-Content -Path $env:AUTOCORRECT_STORE -Value $lines
-    Write-Host "[lk-autocorrect] Removed '$cmd'" -ForegroundColor Red
+    _ac_red "Removed '$cmd'"
 }
 
 function ac-list {
     $commands = Get-Content $env:AUTOCORRECT_STORE | Where-Object { $_ -notmatch '^\s*#' -and $_ -ne "" }
-    Write-Host "[lk-autocorrect] $($commands.Count) commands in store:" -ForegroundColor Yellow
+    _ac_yellow "$($commands.Count) commands in store:"
     Write-Host ""
     $commands | Sort-Object | Format-Wide -AutoSize
 }
 
 function ac-test {
     param([string]$typo)
-    if (-not $typo) { Write-Host "Usage: ac-test <typo>"; return }
+    if (-not $typo) { Write-Host "Usage: ac-test [typo]"; return }
     $result = & $_AC_PYTHON $_AC_MATCHER $typo $env:AUTOCORRECT_STORE $env:AUTOCORRECT_THRESHOLD 2>$null
     if (-not $result) {
-        Write-Host "[lk-autocorrect] No match for '$typo' within threshold $env:AUTOCORRECT_THRESHOLD" -ForegroundColor Red
+        _ac_red "No match for '$typo' within threshold $env:AUTOCORRECT_THRESHOLD"
     } else {
         $parts = $result -split "\|\|\|"
-        Write-Host "[lk-autocorrect] '$typo' -> '$($parts[0])' (distance: $($parts[1]))" -ForegroundColor Green
+        _ac_green "'$typo' -> '$($parts[0])' (distance: $($parts[1]))"
     }
 }
 
