@@ -16,7 +16,7 @@ if sys.platform == "win32":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 # Constants
-VERSION      = "1.3.0b3"
+VERSION      = "1.3.0b4"
 PACKAGE_DIR  = Path(__file__).parent
 
 # Platform detection
@@ -98,10 +98,43 @@ def remove_from_rc(rc: Path):
     cleaned = [l for l in lines if l.strip() != MARKER and "lk-autocorrect" not in l]
     rc.write_text("\n".join(cleaned) + "\n", encoding="utf-8")
 
+# Verify pip package is actually installed
+def _verify_pip_package():
+    """
+    Confirms lk-autocorrect is genuinely installed via pip (not just
+    importable from a stray local file) by checking pip's own metadata.
+    Prevents install/status from reporting success off a broken or
+    partial installation.
+    """
+    import subprocess
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "show", "lk-autocorrect"],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode != 0:
+            return False, None
+        for line in result.stdout.splitlines():
+            if line.startswith("Version:"):
+                return True, line.split(":", 1)[1].strip()
+        return True, None
+    except Exception:
+        return False, None
+
 # Install
 def install():
     print(f"\n{bold('lk-autocorrect')} v{VERSION}\n")
     print(f"{TAG} Platform: {bold(PLATFORM)}")
+
+    # confirm this is a real pip install, not a stray local checkout
+    pip_ok, pip_version = _verify_pip_package()
+    if not pip_ok:
+        print(f"{ERR} lk-autocorrect does not appear to be installed via pip.")
+        print(f"{TAG} Install it first: {bold('pip install lk-autocorrect')}\n")
+        sys.exit(1)
+    if pip_version and pip_version != VERSION:
+        print(f"{TAG} Note: pip reports v{pip_version}, running code is v{VERSION}.")
+        print(f"{TAG} If these differ, run: {bold('lk-autocorrect update')}\n")
 
     # verify source files exist before copying
     for f in ["autocorrect.sh", "autocorrect.ps1", "matcher.py"]:
@@ -300,6 +333,71 @@ def verify():
         print(f"{ERR} Some checks failed — run: lk-autocorrect install\n")
         sys.exit(1)
 
+# Detect install method
+def _detect_installer():
+    """
+    Returns "pipx" if lk-autocorrect was installed via pipx, else "pip".
+    Detected by checking if the running interpreter lives inside a
+    pipx-managed virtual environment path. Works the same way on
+    Windows, macOS, and Linux since it just inspects sys.executable.
+    """
+    exe_path = str(Path(sys.executable))
+    if "pipx" in exe_path:
+        return "pipx"
+    return "pip"
+
+# ── Upgrade ───────────────────────────────────────────
+def upgrade(version=None, include_pre=False):
+    import subprocess
+
+    installer = _detect_installer()
+    print(f"\n{bold('lk-autocorrect')} v{VERSION} — checking for updates\n")
+    print(f"{TAG} Detected installer: {bold(installer)}")
+
+    package_spec = f"lk-autocorrect=={version}" if version else "lk-autocorrect"
+
+    if installer == "pipx":
+        if version or include_pre:
+            # pinning a version or including pre-releases requires a
+            # fresh install rather than the stable-only "pipx upgrade".
+            # --force is required here since pipx otherwise refuses to
+            # touch an already-installed package.
+            upgrade_cmd = ["pipx", "install", package_spec, "--force"]
+            if include_pre:
+                upgrade_cmd.append("--pip-args=--pre")
+        else:
+            upgrade_cmd = ["pipx", "upgrade", "lk-autocorrect"]
+    else:
+        upgrade_cmd = [sys.executable, "-m", "pip", "install", "--upgrade", package_spec]
+        if include_pre:
+            upgrade_cmd.append("--pre")
+
+    print(f"{TAG} Running: {bold(' '.join(upgrade_cmd))}\n")
+
+    try:
+        result = subprocess.run(upgrade_cmd)
+    except FileNotFoundError:
+        print(f"\n{ERR} '{upgrade_cmd[0]}' not found on PATH.")
+        sys.exit(1)
+
+    if result.returncode != 0:
+        print(f"\n{ERR} Upgrade failed. Try manually:")
+        if installer == "pipx":
+            print(f"    {bold(f'pipx install {package_spec}')}")
+        else:
+            print(f"    {bold(f'pip install --upgrade {package_spec}')}")
+        print()
+        sys.exit(1)
+
+    print(f"\n{OK} Package upgrade complete. Refreshing shell files...\n")
+
+    # re-exec as a brand new process so the freshly installed code
+    # (not the stale copy already loaded in this process) runs the install.
+    # Without this the user would need to manually re-run the command,
+    # since Python does not reload already-imported modules mid-process.
+    result = subprocess.run([sys.executable, "-m", "lk_autocorrect.cli", "install"])
+    sys.exit(result.returncode)
+
 # Help
 def help():
     ps_note = "  . $PROFILE                  Reload PowerShell after install\n" if is_windows() else ""
@@ -313,6 +411,9 @@ def help():
   {bold('lk-autocorrect')}              Install
   {bold('lk-autocorrect install')}      Install
   {bold('lk-autocorrect uninstall')}    Remove from system
+  {bold('lk-autocorrect upgrade')}          Upgrade to the latest stable version
+  {bold('lk-autocorrect upgrade --pre')}    Upgrade to the latest beta/alpha
+  {bold('lk-autocorrect upgrade 1.3.0b4')}  Upgrade to a specific version
   {bold('lk-autocorrect status')}       Show installation status
   {bold('lk-autocorrect verify')}       Check file integrity
   {bold('lk-autocorrect help')}         Show this help
@@ -351,6 +452,13 @@ def main():
         "-v":             lambda: print(VERSION),
         "--auto-install": auto_install,
     }
+
+    if cmd == "upgrade":
+        rest        = args[1:]
+        include_pre = "--pre" in rest
+        version     = next((a for a in rest if a != "--pre"), None)
+        upgrade(version=version, include_pre=include_pre)
+        return
 
     fn = dispatch.get(cmd)
     if fn:

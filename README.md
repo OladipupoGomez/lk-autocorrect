@@ -95,7 +95,7 @@ $env:PATH += ";$scriptsPath"
 ```
 
 > This adds the Python Scripts folder to your PATH so `lk-autocorrect` can be found.
-> Open a new PowerShell window after running this or restart after running this.
+> Open a new PowerShell window or restart Powershell after running this.
 
 **Step 3 — Run the installer**
 
@@ -240,6 +240,9 @@ ac-list
 |---|---|
 | `lk-autocorrect install` | Install and set up shell hook |
 | `lk-autocorrect uninstall` | Remove from system |
+| `lk-autocorrect upgrade` | Upgrade to the latest stable version |
+| `lk-autocorrect upgrade --pre` | Upgrade to the latest beta/alpha |
+| `lk-autocorrect upgrade [version]` | Upgrade to a specific version |
 | `lk-autocorrect status` | Show installation status |
 | `lk-autocorrect verify` | Check file integrity and print checksums |
 | `lk-autocorrect help` | Show help |
@@ -307,11 +310,23 @@ notepad $env:USERPROFILE\.config\lk-autocorrect\commands.txt  # Windows
 
 ---
 
-## Update
+## Upgrade
+
+`lk-autocorrect` detects whether you installed via `pip` or `pipx` and runs the correct upgrade command automatically, then refreshes your shell files in one step.
 
 ```bash
-pip install lk-autocorrect --upgrade
+# upgrade to the latest stable release
+lk-autocorrect upgrade
+
+# upgrade to the latest beta/alpha (pre-release)
+lk-autocorrect upgrade --pre
+
+# upgrade to a specific version
+lk-autocorrect upgrade [version]
+# example: lk-autocorrect upgrade 1.3.0b4
 ```
+
+This works the same way on macOS, Linux, and Windows.
 
 ---
 
