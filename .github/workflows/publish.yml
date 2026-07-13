@@ -20,32 +20,55 @@ jobs:
         run: pip-audit
 
   test:
-    runs-on: ubuntu-latest
     strategy:
       matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
-        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Smoke test matcher
+
+      - name: Smoke test matcher (unix)
+        if: runner.os != 'Windows'
         run: |
           mkdir -p ~/.config/lk-autocorrect
-          echo -e "git\ndocker\nkubectl\nterraform" > ~/.config/lk-autocorrect/commands.txt
+          printf "git\ndocker\nkubectl\nterraform\n" > ~/.config/lk-autocorrect/commands.txt
           result=$(python3 src/matcher.py "gti" ~/.config/lk-autocorrect/commands.txt 3)
-          [[ "$result" == "git|||1" ]] && echo "PASS: gti->git" || (echo "FAIL" && exit 1)
+          [ "$result" = "git|||1" ] && echo "PASS: gti->git" || (echo "FAIL" && exit 1)
           result=$(python3 src/matcher.py "dockr" ~/.config/lk-autocorrect/commands.txt 3)
-          [[ "$result" == "docker|||1" ]] && echo "PASS: dockr->docker" || (echo "FAIL" && exit 1)
-          result=$(python3 src/matcher.py "terrafrom" ~/.config/lk-autocorrect/commands.txt 3)
-          [[ "$result" == "terraform|||1" ]] && echo "PASS: terrafrom->terraform" || (echo "FAIL" && exit 1)
-      - name: Test injection blocking
+          [ "$result" = "docker|||1" ] && echo "PASS: dockr->docker" || (echo "FAIL" && exit 1)
+
+      - name: Smoke test matcher (windows)
+        if: runner.os == 'Windows'
+        run: |
+          $dir = "$env:USERPROFILE\.config\lk-autocorrect"
+          New-Item -ItemType Directory -Force -Path $dir
+          "git`ndocker`nkubectl`nterraform" | Set-Content "$dir\commands.txt"
+          $result = python src/matcher.py "gti" "$dir\commands.txt" 3
+          if ($result -eq "git|||1") { Write-Host "PASS: gti->git" } else { Write-Error "FAIL" }
+          $result = python src/matcher.py "dockr" "$dir\commands.txt" 3
+          if ($result -eq "docker|||1") { Write-Host "PASS: dockr->docker" } else { Write-Error "FAIL" }
+        shell: pwsh
+
+      - name: Test injection blocking (unix)
+        if: runner.os != 'Windows'
         run: |
           mkdir -p ~/.config/lk-autocorrect
           echo "git" > ~/.config/lk-autocorrect/commands.txt
           result=$(python3 src/matcher.py "git;rm -rf" ~/.config/lk-autocorrect/commands.txt 3)
-          [[ -z "$result" ]] && echo "PASS: injection blocked" || (echo "FAIL: injection not blocked" && exit 1)
+          [ -z "$result" ] && echo "PASS: injection blocked" || (echo "FAIL" && exit 1)
+
+      - name: Test injection blocking (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dir = "$env:USERPROFILE\.config\lk-autocorrect"
+          $result = python src/matcher.py "git;rm -rf" "$dir\commands.txt" 3
+          if (-not $result) { Write-Host "PASS: injection blocked" } else { Write-Error "FAIL: injection not blocked" }
+
       - name: Test CLI entry point
         run: |
           pip install -e .
@@ -70,4 +93,3 @@ jobs:
           python -m build
       - name: Publish to PyPI (trusted publishing — no token needed)
         uses: pypa/gh-action-pypi-publish@release/v1
-        

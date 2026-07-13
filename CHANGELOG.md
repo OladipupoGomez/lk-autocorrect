@@ -2,7 +2,29 @@
 
 All notable changes and future updates will be documented here.
 
-## [1.2.0] — 2026-05-26
+## [1.3.0-beta] — 2026-07-12
+
+### Added
+- Windows support — PowerShell 5 and PowerShell 7 via `CommandNotFoundAction` hook
+- `src/autocorrect.ps1` — dedicated PowerShell script with full `ac-add`, `ac-remove`, `ac-list`, `ac-test`, `ac-help` support
+- WSL detection — installer correctly identifies WSL and uses the Linux/bash path instead of Windows
+- Windows package manager commands added to store — `winget`, `choco`, `scoop`
+- PowerShell-specific commands added to store — `Get-Help`, `Get-Command`, `Get-Process`, `Get-Service` and more
+- `matcher.py` updated to validate store paths on both Windows and Unix
+- `cli.py` updated to detect platform (Windows / WSL / Unix) and install the correct script
+- PowerShell profile injection — adds source line to both PS7 and PS5 profiles automatically
+- Execution policy guidance shown on Windows install
+- GitHub Actions now tests on `windows-latest` across Python 3.9, 3.11, 3.13
+- Removed `os = ["linux", "darwin"]` restriction from `pyproject.toml` — package now installs on all platforms
+
+### Fixed
+- WSL users no longer blocked by Windows OS check in installer
+
+# Changelog
+
+All notable changes will be documented here.
+
+## [1.0.0] — 2026-05-26
 
 ### Added
 - Initial release
@@ -34,3 +56,4 @@ All notable changes and future updates will be documented here.
 - pip install support — `pip install lk-autocorrect`
 - macOS `externally-managed-environment` handled via `--user --break-system-packages`
 - Automatic checksum writing on install for integrity verification
+- GitHub Actions CI/CD — runs security scan (bandit, pip-audit), tests on Python 3.9–3.13 and Ubuntu/macOS, publishes to PyPI on git tag using trusted publishing

@@ -1,6 +1,6 @@
 # lk-autocorrect
 
-> Fuzzy autocorrect for mistyped shell commands. Works in zsh and bash on Linux and macOS.
+> Fuzzy autocorrect for mistyped shell commands. Works in zsh and bash on Linux and macOS, and PowerShell on Windows.
 
 When you mistype a command, instead of a dead error you get a suggestion:
 
@@ -26,17 +26,17 @@ $ terrafrom plan
 
 ## Requirements
 
-- **macOS** or **Linux**
+- **macOS** or **Linux** (zsh or bash) — check with `echo $SHELL`
 - **Python 3.9+** — check with `python3 --version`
-- **zsh** or **bash** — check with `echo $SHELL`
-
-> Windows is not supported natively. Use [WSL](https://learn.microsoft.com/en-us/windows/wsl/) (Windows Subsystem for Linux) and follow the Linux instructions.
+- **Windows** — PowerShell 5 or PowerShell 7 
 
 ---
 
 ## Install
 
-### Step 1 — Install lk-autocorrect
+### macOS / Linux
+
+**Step 1 — Install lk-autocorrect**
 
 ```bash
 pip install lk-autocorrect
@@ -47,7 +47,7 @@ pip install lk-autocorrect
 > pip install lk-autocorrect --user --break-system-packages
 > ```
 
-### Step 2 — Run the installer
+**Step 2 — Run the installer**
 
 ```bash
 lk-autocorrect install
@@ -55,14 +55,14 @@ lk-autocorrect install
 
 This automatically adds the source line to your `~/.zshrc` or `~/.bashrc`.
 
-### Step 3 — Reload your shell
+**Step 3 — Reload your shell**
 
 ```bash
 source ~/.zshrc   # zsh
 source ~/.bashrc  # bash
 ```
 
-### Step 4 — Test it
+**Step 4 — Test it**
 
 ```bash
 gti status        # → Did you mean: git status?
@@ -72,13 +72,55 @@ kubctl get pods   # → Did you mean: kubectl get pods?
 
 ---
 
+### Windows (PowerShell)
+
+**Step 1 — Install lk-autocorrect**
+
+```powershell
+pip install lk-autocorrect
+```
+
+**Step 2 — Run the installer**
+
+```powershell
+lk-autocorrect install
+```
+
+This automatically adds the source line to your PowerShell profile (`$PROFILE`).
+
+**Step 3 — Reload your profile**
+
+```powershell
+. $PROFILE
+```
+
+**Step 4 — Test it**
+
+```powershell
+gti status        # → Did you mean: git status?
+dockr ps          # → Did you mean: docker ps?
+kubctl get pods   # → Did you mean: kubectl get pods?
+```
+
+> **Note:** if you see a script execution error on first run:
+> ```powershell
+> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+> ```
+
+---
+
 ## Shell compatibility
 
-| Shell | Support | Notes |
-|---|---|---|
-| zsh | Full | Automatic — fires on any mistyped command |
-| bash 4+ | Full | Automatic — fires on any mistyped command |
-| bash 3.2 | Partial | Use `lk <command>` as fallback |
+| Shell | Platform | Support | Notes |
+|---|---|---|---|
+| zsh | macOS / Linux | Full | Automatic — fires on any mistyped command |
+| bash 4+ | macOS / Linux | Full | Automatic — fires on any mistyped command |
+| bash 3.2 | macOS | Partial | Use `lk <command>` as fallback |
+| PowerShell 5 | Windows | Full | Automatic via `CommandNotFoundAction` |
+| PowerShell 7 | Windows | Full | Automatic via `CommandNotFoundAction` |
+| Git Bash | Windows | Full | Treated as bash — works automatically |
+| WSL | Windows | Full | Treated as Linux — works automatically |
+| CMD | Windows | ❌ | No hook mechanism available |
 
 ### bash 3.2 on macOS
 
@@ -132,6 +174,13 @@ brew install python@3.13
 sudo apt install python3.13
 ```
 
+**Upgrade on Windows:**
+
+Download from [python.org](https://python.org) or:
+```powershell
+winget install Python.Python.3.13
+```
+
 ---
 
 ## Usage
@@ -181,6 +230,8 @@ ac-list
 
 ## Configuration
 
+### macOS / Linux
+
 Set these in your `~/.zshrc` or `~/.bashrc` **before** the source line:
 
 ```bash
@@ -194,11 +245,24 @@ export AUTOCORRECT_AUTO=true
 export AUTOCORRECT_COLOR=false
 ```
 
+### Windows (PowerShell)
+
+Set these in your `$PROFILE` **before** the source line:
+
+```powershell
+$env:AUTOCORRECT_THRESHOLD = "2"
+$env:AUTOCORRECT_AUTO = "true"
+```
+
 ---
 
 ## Command store
 
+### macOS / Linux
 The store lives at `~/.config/lk-autocorrect/commands.txt` — one command per line, `#` lines are comments.
+
+### Windows
+The store lives at `%USERPROFILE%\.config\lk-autocorrect\commands.txt`.
 
 Ships with 150+ popular commands across git, docker, kubectl, terraform, AWS CLI, Azure CLI and more. Your store is preserved across updates and uninstalls (you are asked before it is deleted).
 
@@ -210,14 +274,15 @@ ac-add "mycli"
 ac-remove "mycli"
 
 # or edit directly
-nano ~/.config/lk-autocorrect/commands.txt
+nano ~/.config/lk-autocorrect/commands.txt  or  vim ~/.config/lk-autocorrect/commands.txt  # macOS / Linux
+notepad $env:USERPROFILE\.config\lk-autocorrect\commands.txt  # Windows
 ```
 
 ---
 
 ## How it works
 
-1. The shell hook (`command_not_found_handler` in zsh, `command_not_found_handle` in bash 4+) fires when a command is not found.
+1. The shell hook (`command_not_found_handler` in zsh, `command_not_found_handle` in bash 4+, `CommandNotFoundAction` in PowerShell) fires when a command is not found.
 2. The typo is passed to `matcher.py` which compares it against every command in the store using **Damerau-Levenshtein distance** — an algorithm that counts insertions, deletions, substitutions, and transpositions. This means `gti` → `git` scores as distance 1 (one transposition) not 2.
 3. If the closest match is within `AUTOCORRECT_THRESHOLD` edits, the suggestion is shown.
 4. You confirm with `y` or it runs automatically if `AUTOCORRECT_AUTO=true`.
@@ -257,8 +322,8 @@ Pull requests welcome.
 
 1. Fork the repo
 2. Create a branch: `git checkout -b my-feature`
-3. Make changes to `src/autocorrect.sh` or `src/matcher.py`
-4. Test in both zsh and bash
+3. Make changes to `src/autocorrect.sh`, `src/autocorrect.ps1` or `src/matcher.py`
+4. Test in zsh, bash, and PowerShell
 5. Open a PR
 
 ---
