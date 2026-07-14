@@ -16,7 +16,7 @@ if sys.platform == "win32":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 # Constants
-VERSION      = "1.3.0"
+VERSION      = "1.4.0b1"
 PACKAGE_DIR  = Path(__file__).parent
 
 # Platform detection
@@ -194,6 +194,18 @@ def _install_unix():
     print(f"\n{OK} {bold('Done!')} Reload your shell:\n")
     print(f"    {bold(f'source {rc}')}\n")
     print(f"  Then try: {bold('gti status')}\n")
+
+    # if the lk-autocorrect CLI itself isn't resolvable, guide the user
+    # to add pip's user script directory to PATH (common on macOS where
+    # `pip install --user` puts scripts in ~/Library/Python/x.y/bin,
+    # which is not on PATH by default)
+    if not shutil.which("lk-autocorrect"):
+        import sysconfig
+        user_bin = Path(sysconfig.get_path("scripts", f"{os.name}_user"))
+        print(f"{TAG} If lk-autocorrect is not found after install, add it to PATH:\n")
+        path_cmd = f'export PATH="{user_bin}:$PATH"'
+        print(f"    {bold(path_cmd)}\n")
+        print(f"  Add this line to {rc} to make it permanent, then restart your shell.\n")
 
 def _install_windows():
     shell_name, ps7_profile, ps5_profile = detect_shell()
@@ -446,7 +458,7 @@ def help():
   {bold('lk-autocorrect uninstall')}    Remove from system
   {bold('lk-autocorrect upgrade')}          Upgrade to the latest stable version
   {bold('lk-autocorrect upgrade --pre')}    Upgrade to the latest beta/alpha
-  {bold('lk-autocorrect upgrade 1.3.0b4')}  Upgrade to a specific version
+  {bold('lk-autocorrect upgrade [version]')}  Upgrade to a specific version
   {bold('lk-autocorrect status')}       Show installation status
   {bold('lk-autocorrect verify')}       Check file integrity
   {bold('lk-autocorrect help')}         Show this help

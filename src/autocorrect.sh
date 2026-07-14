@@ -233,6 +233,20 @@ git reset
 git tag
 git remote
 git init
+git config
+git show
+git blame
+git cherry-pick
+git revert
+git bisect
+git worktree
+git submodule
+git reflog
+git gc
+git clean
+git mv
+git rm
+git describe
 
 # Python
 python
@@ -266,6 +280,22 @@ service
 # Docker
 docker
 docker-compose
+docker build
+docker run
+docker ps
+docker images
+docker exec
+docker logs
+docker stop
+docker start
+docker rm
+docker rmi
+docker pull
+docker push
+docker network
+docker volume
+docker inspect
+docker compose
 
 # Kubernetes
 kubectl
@@ -281,7 +311,23 @@ kubectl create
 kubectl edit
 kubectl config
 kubectl cluster-info
+kubectl port-forward
+kubectl top
+kubectl label
+kubectl annotate
+kubectl patch
+kubectl cp
+kubectl run
+kubectl expose
+kubectl drain
+kubectl cordon
+kubectl taint
 helm
+helm install
+helm upgrade
+helm uninstall
+helm list
+helm repo
 minikube
 
 # Terraform
@@ -289,6 +335,17 @@ terraform
 terraform init
 terraform plan
 terraform apply
+terraform destroy
+terraform fmt
+terraform validate
+terraform output
+terraform state
+terraform import
+terraform workspace
+terraform refresh
+terraform show
+terraform taint
+terraform graph
 
 # IaC & config management
 ansible
@@ -307,6 +364,8 @@ aws s3
 aws s3 cp
 aws s3 ls
 aws s3 sync
+aws s3 mv
+aws s3 rm
 aws ec2
 aws iam
 aws lambda
@@ -314,6 +373,12 @@ aws cloudformation
 aws ecr
 aws eks
 aws rds
+aws sts
+aws logs
+aws sns
+aws sqs
+aws dynamodb
+aws configure
 
 # Azure CLI
 az
@@ -327,6 +392,12 @@ az webapp
 az functionapp
 az network
 az keyvault
+az account
+az resource
+az deployment
+az role
+az ad
+az monitor
 STOREEOF
 
   # restrict permissions — only owner can read/write
@@ -438,6 +509,85 @@ elif [[ -n "$BASH_VERSION" ]]; then
     printf "\033[33m[lk-autocorrect]\033[0m Or switch to zsh: \033[1mchsh -s /bin/zsh\033[0m\n"
   fi
 fi
+
+# ── Subcommand correction wrappers ────────────────────
+# The command_not_found hook only fires when the shell can't find the
+# BASE command at all — it never fires for "git psuh" or "terraform
+# plna" since git/terraform genuinely exist; the shell hands the typo
+# straight to them and they report their own "unknown subcommand" error.
+# To catch these we wrap each multi-word command in the store with a
+# same-named shell function that checks the subcommand before calling
+# through to the real binary.
+
+_ac_wrap_subcommand() {
+  local base="$1"; shift
+  local sub="$1"
+
+  # no subcommand typed, or looks like a flag — pass straight through
+  if [[ -z "$sub" || "$sub" == -* ]]; then
+    command "$base" "$@"
+    return $?
+  fi
+
+  # exact match already — nothing to correct
+  if grep -qxF "${base} ${sub}" "${AUTOCORRECT_STORE}"; then
+    command "$base" "$@"
+    return $?
+  fi
+
+  # block injection characters in the subcommand itself
+  case "$sub" in
+    *[';&|`$(){}><\"']*) command "$base" "$@"; return $? ;;
+  esac
+
+  # build a temporary list of just this base command's known subcommands
+  local sublist
+  sublist=$(grep "^${base} " "${AUTOCORRECT_STORE}" | sed "s/^${base} //")
+  [[ -z "$sublist" ]] && { command "$base" "$@"; return $?; }
+
+  local tmp_store
+  tmp_store=$(mktemp)
+  echo "$sublist" > "$tmp_store"
+
+  local result
+  result=$(python3 "${_AC_MATCHER}" "${sub}" "${tmp_store}" "${AUTOCORRECT_THRESHOLD}" 2>/dev/null)
+  rm -f "$tmp_store"
+
+  if [[ -z "$result" ]]; then
+    command "$base" "$@"
+    return $?
+  fi
+
+  local suggestion="${result%|||*}"
+  local dist="${result##*|||}"
+  [[ "$dist" == "0" ]] && { command "$base" "$@"; return $?; }
+
+  shift
+  local corrected="${base} ${suggestion} $*"
+
+  printf "%s Did you mean: %s?\n" "$(_ac_yellow "[lk-autocorrect]")" "$(_ac_bold "$corrected")"
+  printf "%s Run it? [y/N] " "$(_ac_yellow "[lk-autocorrect]")"
+  local answer
+  read -r answer </dev/tty
+  if [[ "$answer" =~ ^[Yy]$ ]]; then
+    command "$base" "$suggestion" "$@"
+  else
+    command "$base" "$sub" "$@"
+  fi
+}
+
+# generate a wrapper function for each base command that has multi-word
+# entries in the store (git, terraform, kubectl, docker, aws, az, helm)
+for _ac_base_cmd in git terraform kubectl docker aws az helm; do
+  if grep -q "^${_ac_base_cmd} " "${AUTOCORRECT_STORE}" 2>/dev/null; then
+    eval "
+    ${_ac_base_cmd}() {
+      _ac_wrap_subcommand ${_ac_base_cmd} \"\$@\"
+    }
+    "
+  fi
+done
+unset _ac_base_cmd
 
 # Public commands
 
