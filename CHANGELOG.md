@@ -2,6 +2,37 @@
 
 All notable changes and future updates will be documented here.
 
+## [1.3.0] — 2026-07-14
+
+Stable release consolidating all Windows support work from the beta cycle (`1.3.0-beta2` through `1.3.0-beta6`).
+
+### Added
+- Full Windows support via PowerShell 5 and PowerShell 7, using the `CommandNotFoundAction` hook
+- `src/autocorrect.ps1` — dedicated PowerShell script with `ac-add`, `ac-remove`, `ac-list`, `ac-test`, `ac-help`
+- WSL detection — installer correctly treats WSL as Linux rather than Windows
+- `lk-autocorrect upgrade` command — detects pip vs pipx automatically, supports `--pre` for beta/alpha releases and exact version pinning (`lk-autocorrect upgrade [version]`)
+- `install` now verifies the package is genuinely installed via pip/pipx before proceeding, and warns if already fully installed and configured
+- PATH guidance printed automatically on install for both Windows and macOS/Linux when `lk-autocorrect` isn't resolvable on PATH
+- Windows and PowerShell-specific commands added to the default store (`winget`, `choco`, `scoop`, `Get-Help`, `Get-Process`, etc.)
+- CI now tests across Ubuntu, macOS, and Windows on Python 3.11–3.13
+
+### Fixed
+- PowerShell command correction rewritten using `$eventArgs.CommandScriptBlock` — the officially supported substitution mechanism — fixing verb-noun transformation issues, scope restrictions on `Invoke-Expression`, and duplicate error messages
+- Argument passing to corrected commands on PowerShell (e.g. `gti status` → `git status`)
+- Unicode encoding crash on Windows (CP1252) — replaced `✓`/`✗` with ASCII equivalents
+- `upgrade` re-exec bug — was calling a non-existent module path, now resolves the installed console script directly so it works regardless of internal package structure
+- WSL no longer blocked by the Windows platform check in the installer
+
+### Changed
+- Minimum Python version raised from 3.9 to 3.11 — 3.9/3.10 caused installation failures on Windows CI runners and are approaching end-of-life
+
+---
+
+## [1.3.0-beta6] — 2026-07-13
+
+### Fixed
+- `VERSION` string in `src/cli.py` was not bumped before tagging and publishing `1.3.0-beta5` — the package published to PyPI as `1.3.0b5` still reported itself as `1.3.0b4` at runtime, making the earlier re-exec fix impossible to verify. No functional code changes in this release; version string corrected and re-published so `lk-autocorrect --version` reports accurately
+
 ## [1.3.0-beta5] — 2026-07-13
 
 ### Fixed
@@ -9,7 +40,6 @@ All notable changes and future updates will be documented here.
 
 ### Added
 - `install` now warns when lk-autocorrect is already installed and configured (shell script exists AND RC/profile is already injected), pointing the user to `lk-autocorrect upgrade` or `lk-autocorrect uninstall` instead of silently re-running with no clear signal that nothing changed
-
 
 ## [1.3.0-beta4] — 2026-07-13
 
