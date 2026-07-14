@@ -47,7 +47,17 @@ pip install lk-autocorrect
 > pip install lk-autocorrect --user --break-system-packages
 > ```
 
-**Step 2 — Run the installer**
+**Step 2 — Add lk-autocorrect to PATH (if needed)**
+
+If `lk-autocorrect` is not found after installing, run the command to add it to PATH:
+
+```bash
+export PATH="$HOME/Library/Python/3.13/bin:$PATH"
+```
+
+Add that line to your `~/.zshrc` or `~/.bashrc` to make it permanent, then restart your shell.
+
+**Step 3 — Run the installer**
 
 ```bash
 lk-autocorrect install
@@ -55,14 +65,14 @@ lk-autocorrect install
 
 This automatically adds the source line to your `~/.zshrc` or `~/.bashrc`.
 
-**Step 3 — Reload your shell**
+**Step 4 — Reload your shell**
 
 ```bash
 source ~/.zshrc   # zsh
 source ~/.bashrc  # bash
 ```
 
-**Step 4 — Test it**
+**Step 5 — Test it**
 
 ```bash
 gti status        # → Did you mean: git status?
