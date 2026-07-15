@@ -18,6 +18,9 @@ All notable changes and future updates will be documented here.
 - Subcommand wrapper's temporary file was being created via system `mktemp` (typically `/tmp`), which `matcher.py`'s path validation silently rejected since it only allows reads from inside `~/.config/lk-autocorrect/`. Fixed by creating the temp file inside `AUTOCORRECT_DIR` instead — this was the root cause of subcommand correction silently doing nothing
 - Trailing space in the correction prompt when a corrected subcommand had no additional arguments (e.g. `git push ?` → `git push?`)
 
+### Security
+- Pinned `setuptools>=83.0.0,<85` in build requirements and CI (`PYSEC-2026-3447`), fixed in `83.0.0`. Upper bound added to avoid unexpected breakage from future setuptools releases
+
 ## [1.3.0] — 2026-07-14
 
 Stable release consolidating all Windows support work from the beta cycle (`1.3.0-beta2` through `1.3.0-beta6`).
