@@ -16,7 +16,7 @@ if sys.platform == "win32":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 # Constants
-VERSION      = "1.4.0b1"
+VERSION      = "1.4.0b2"
 PACKAGE_DIR  = Path(__file__).parent
 
 # Platform detection

@@ -4,6 +4,7 @@ AUTOCORRECT_STORE="${AUTOCORRECT_DIR}/commands.txt"
 AUTOCORRECT_THRESHOLD="${AUTOCORRECT_THRESHOLD:-2}"
 AUTOCORRECT_AUTO="${AUTOCORRECT_AUTO:-false}"
 AUTOCORRECT_COLOR="${AUTOCORRECT_COLOR:-true}"
+AUTOCORRECT_ENABLED="${AUTOCORRECT_ENABLED:-true}"
 
 # Colors
 _ac_yellow() { $AUTOCORRECT_COLOR && printf '\033[33m%s\033[0m' "$*" || printf '%s' "$*"; }
@@ -91,7 +92,16 @@ try:
 except (IOError, OSError, PermissionError):
     sys.exit(1)
 
-if best_dist <= threshold and best_cmd:
+# scale the allowed distance for longer words — a 3-edit difference
+# on an 8+ letter word (e.g. "trafform" -> "terraform") is a much
+# smaller relative change than the same 3 edits on a 5 letter word
+# (e.g. "xwine" -> "file"), so longer typos get one extra edit of
+# tolerance rather than using a single fixed threshold for everything
+effective_threshold = threshold
+if len(typo) >= 8:
+    effective_threshold = threshold + 1
+
+if best_dist <= effective_threshold and best_cmd:
     if not re.search(r'[;&|`$(){}<>!]', best_cmd):
         print("{}|||{}".format(best_cmd, best_dist))
 PYEOF
@@ -420,6 +430,9 @@ _ac_handle() {
   shift
   local args="$*"
 
+  # respect the on/off switch — if disabled, do nothing at all
+  [[ "$AUTOCORRECT_ENABLED" != "true" ]] && return 127
+
   # prevent re-entry loop when running corrected command
   [[ -n "$_AC_RUNNING" ]] && return 127
 
@@ -457,6 +470,43 @@ _ac_handle() {
     corrected="${suggestion} ${args}"
   else
     corrected="$suggestion"
+  fi
+
+  # pre-correct the subcommand too if the corrected base is a wrapped
+  # command (git, terraform, etc.) — this folds a two-step correction
+  # like "gti statsu" into a single prompt showing "git status"
+  # instead of asking twice (once here, once inside the wrapper)
+  local new_base new_rest new_sub remaining
+  new_base="${corrected%% *}"
+  new_rest="${corrected#* }"
+  if [[ "$new_rest" != "$corrected" ]]; then
+    new_sub="${new_rest%% *}"
+    remaining="${new_rest#* }"
+    [[ "$remaining" == "$new_sub" ]] && remaining=""
+
+    case " git terraform kubectl docker aws az helm " in
+      *" ${new_base} "*)
+        if ! grep -qxF "${new_base} ${new_sub}" "${AUTOCORRECT_STORE}" 2>/dev/null; then
+          local sub_sublist
+          sub_sublist=$(grep "^${new_base} " "${AUTOCORRECT_STORE}" | sed "s/^${new_base} //")
+          if [[ -n "$sub_sublist" ]]; then
+            local sub_tmp="${AUTOCORRECT_DIR}/.tmp_precorrect_$$"
+            echo "$sub_sublist" > "$sub_tmp"
+            local sub_result
+            sub_result=$(python3 "${_AC_MATCHER}" "${new_sub}" "${sub_tmp}" "${AUTOCORRECT_THRESHOLD}" 2>/dev/null)
+            rm -f "$sub_tmp"
+            if [[ -n "$sub_result" ]]; then
+              local sub_suggestion="${sub_result%|||*}"
+              local sub_dist="${sub_result##*|||}"
+              if [[ "$sub_dist" != "0" ]]; then
+                corrected="${new_base} ${sub_suggestion}"
+                [[ -n "$remaining" ]] && corrected="${corrected} ${remaining}"
+              fi
+            fi
+          fi
+        fi
+        ;;
+    esac
   fi
 
   # block injection in suggestion
@@ -523,6 +573,12 @@ _ac_wrap_subcommand() {
   local base="$1"; shift
   local sub="$1"
 
+  # respect the on/off switch — pass straight through if disabled
+  if [[ "$AUTOCORRECT_ENABLED" != "true" ]]; then
+    command "$base" "$@"
+    return $?
+  fi
+
   # no subcommand typed, or looks like a flag — pass straight through
   if [[ -z "$sub" || "$sub" == -* ]]; then
     command "$base" "$@"
@@ -545,8 +601,10 @@ _ac_wrap_subcommand() {
   sublist=$(grep "^${base} " "${AUTOCORRECT_STORE}" | sed "s/^${base} //")
   [[ -z "$sublist" ]] && { command "$base" "$@"; return $?; }
 
-  local tmp_store
-  tmp_store=$(mktemp)
+  # matcher.py only allows reading files inside AUTOCORRECT_DIR — a
+  # system mktemp() file in /tmp would be silently rejected, so the
+  # temp subcommand list must live inside AUTOCORRECT_DIR itself
+  local tmp_store="${AUTOCORRECT_DIR}/.tmp_subcmds_$$"
   echo "$sublist" > "$tmp_store"
 
   local result
@@ -563,7 +621,8 @@ _ac_wrap_subcommand() {
   [[ "$dist" == "0" ]] && { command "$base" "$@"; return $?; }
 
   shift
-  local corrected="${base} ${suggestion} $*"
+  local corrected="${base} ${suggestion}"
+  [[ -n "$*" ]] && corrected="${corrected} $*"
 
   printf "%s Did you mean: %s?\n" "$(_ac_yellow "[lk-autocorrect]")" "$(_ac_bold "$corrected")"
   printf "%s Run it? [y/N] " "$(_ac_yellow "[lk-autocorrect]")"
@@ -639,22 +698,49 @@ ac-test() {
   fi
 }
 
+# ac-off — disable autocorrect for the current shell session
+# without uninstalling. Add "export AUTOCORRECT_ENABLED=false" to your
+# ~/.zshrc or ~/.bashrc (before the source line) to disable permanently.
+ac-off() {
+  export AUTOCORRECT_ENABLED=false
+  printf "%s Autocorrect disabled for this session.\n" "$(_ac_yellow "[lk-autocorrect]")"
+  printf "%s Run 'ac-on' to re-enable, or add this to your shell rc file to disable permanently:\n" "$(_ac_yellow "[lk-autocorrect]")"
+  printf "    export AUTOCORRECT_ENABLED=false\n"
+}
+
+# ac-on — re-enable autocorrect for the current shell session
+ac-on() {
+  export AUTOCORRECT_ENABLED=true
+  printf "%s Autocorrect enabled.\n" "$(_ac_green "[lk-autocorrect]")"
+}
+
 ac-help() {
-  cat << 'EOF'
+  local status_line
+  if [[ "$AUTOCORRECT_ENABLED" == "true" ]]; then
+    status_line="$(_ac_green "enabled")"
+  else
+    status_line="$(_ac_red "disabled")"
+  fi
+
+  cat << EOF
 
   lk-autocorrect — fuzzy CLI command correction
+  Status: ${status_line}
 
   Commands:
     ac-add <cmd>      Add a command to the store
     ac-remove <cmd>   Remove a command from the store
     ac-list           List all commands in the store
     ac-test <typo>    Preview what a typo would match
+    ac-off            Disable autocorrect for this session
+    ac-on             Re-enable autocorrect
     ac-help           Show this help
 
   Config (set before sourcing):
-    AUTOCORRECT_THRESHOLD=2    Max edit distance (default: 2)
+    AUTOCORRECT_THRESHOLD=2    Max edit distance (default: 2, +1 for words ≥ 8 chars)
     AUTOCORRECT_AUTO=false     Auto-run without asking (default: false)
     AUTOCORRECT_COLOR=true     Colorized output (default: true)
+    AUTOCORRECT_ENABLED=true   Turn autocorrect on/off (default: true)
 
 EOF
 }

@@ -2,6 +2,22 @@
 
 All notable changes and future updates will be documented here.
 
+## [1.4.0-beta2] — 2026-07-14
+
+### Added
+- Subcommand typo correction — `git`, `terraform`, `kubectl`, `docker`, `aws`, `az`, and `helm` now correct typos in their subcommands, not just the base command (e.g. `git psuh` → `git push`, `trafform fmt` → `terraform fmt`)
+- Windows/PowerShell parity — `autocorrect.ps1` now has the same subcommand correction, `ac-off`/`ac-on` toggle, length-aware matching, and combined single-prompt correction as `autocorrect.sh`. PowerShell subcommand wrapping uses `function:global:` to shadow each wrapped command, resolving the real `.exe` path once via `Get-Command -CommandType Application` to avoid recursive calls
+- Combined single-prompt correction — when both the base command and the subcommand are mistyped at once (e.g. `gti statsu`), both are corrected together and the user is only asked once, instead of seeing two separate confirmation prompts
+- Significantly expanded the default command store — git, docker, kubectl/helm, terraform, aws, and az now each ship with 10–18 subcommands instead of 3–4, making subcommand correction useful out of the box
+- `ac-off` / `ac-on` — disable or re-enable autocorrect for the current shell session without uninstalling; `ac-help` now shows live enabled/disabled status
+- `AUTOCORRECT_ENABLED` environment variable — set to `false` in your shell rc file to disable autocorrect permanently without removing it
+- Length-aware fuzzy matching — words of 8+ characters get one extra edit of tolerance (`threshold + 1`), since a 3-edit difference is proportionally much smaller on a long word than a short one
+- macOS/Linux PATH guidance — `lk-autocorrect install` now detects if the CLI isn't resolvable on PATH and prints the exact `export PATH=...` command to fix it, computed via Python's `sysconfig`, matching the guidance Windows already had
+
+### Fixed
+- Subcommand wrapper's temporary file was being created via system `mktemp` (typically `/tmp`), which `matcher.py`'s path validation silently rejected since it only allows reads from inside `~/.config/lk-autocorrect/`. Fixed by creating the temp file inside `AUTOCORRECT_DIR` instead — this was the root cause of subcommand correction silently doing nothing
+- Trailing space in the correction prompt when a corrected subcommand had no additional arguments (e.g. `git push ?` → `git push?`)
+
 ## [1.3.0] — 2026-07-14
 
 Stable release consolidating all Windows support work from the beta cycle (`1.3.0-beta2` through `1.3.0-beta6`).

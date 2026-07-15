@@ -229,7 +229,9 @@ $ gti commit -m "fix bug"
 | `ac-remove <cmd>` | Remove a command from the store |
 | `ac-list` | List all commands in the store |
 | `ac-test <typo>` | Preview what a typo would correct to |
-| `ac-help` | Show in-shell help |
+| `ac-off` | Disable autocorrect for the current session |
+| `ac-on` | Re-enable autocorrect |
+| `ac-help` | Show in-shell help, including current on/off status |
 
 ```bash
 # add your own commands
@@ -267,6 +269,7 @@ Set these in your `~/.zshrc` or `~/.bashrc` **before** the source line:
 
 ```bash
 # how forgiving the matcher is (1 = strict, 5 = loose) — default: 2
+# words of 8+ characters automatically get +1 extra tolerance
 export AUTOCORRECT_THRESHOLD=2
 
 # auto-run the correction without asking — default: false
@@ -274,7 +277,12 @@ export AUTOCORRECT_AUTO=true
 
 # turn off colours — default: true
 export AUTOCORRECT_COLOR=false
+
+# turn autocorrect on or off — default: true
+export AUTOCORRECT_ENABLED=true
 ```
+
+To turn autocorrect off temporarily without uninstalling, just run `ac-off` in your shell (and `ac-on` to bring it back). To disable it permanently, set `AUTOCORRECT_ENABLED=false` in your rc file as shown above.
 
 ### Windows (PowerShell)
 
@@ -295,7 +303,7 @@ The store lives at `~/.config/lk-autocorrect/commands.txt` — one command per l
 ### Windows
 The store lives at `%USERPROFILE%\.config\lk-autocorrect\commands.txt`.
 
-Ships with 150+ popular commands across git, docker, kubectl, terraform, AWS CLI, Azure CLI and more. Your store is preserved across updates and uninstalls (you are asked before it is deleted).
+Ships with 150+ popular commands and subcommands across git, docker, kubectl, terraform, AWS CLI, Azure CLI and more. Your store is preserved across updates and uninstalls (you are asked before it is deleted).
 
 ```bash
 # add a command
@@ -317,6 +325,34 @@ notepad $env:USERPROFILE\.config\lk-autocorrect\commands.txt  # Windows
 2. The typo is passed to `matcher.py` which compares it against every command in the store using **Damerau-Levenshtein distance** — an algorithm that counts insertions, deletions, substitutions, and transpositions. This means `gti` → `git` scores as distance 1 (one transposition) not 2.
 3. If the closest match is within `AUTOCORRECT_THRESHOLD` edits, the suggestion is shown.
 4. You confirm with `y` or it runs automatically if `AUTOCORRECT_AUTO=true`.
+
+### Subcommand correction
+
+`git`, `terraform`, `kubectl`, `docker`, `aws`, `az`, and `helm` also get their **subcommands** corrected, not just the base command:
+
+```
+$ git psuh
+[lk-autocorrect] Did you mean: git push?
+[lk-autocorrect] Run it? [y/N] y
+```
+
+```
+$ trafform fmt
+[lk-autocorrect] Did you mean: terraform fmt?
+[lk-autocorrect] Run it? [y/N] y
+```
+
+This works even when **both** the base command and the subcommand are mistyped at once — both are corrected together and you only get asked once:
+
+```
+$ gti statsu
+[lk-autocorrect] Did you mean: git status?
+[lk-autocorrect] Run it? [y/N] y
+```
+
+### Length-aware matching
+
+Longer words get one extra edit of tolerance. A 3-edit difference on an 8+ letter word (like `trafform` → `terraform`) is a much smaller relative change than the same 3 edits on a short word — so short words are matched more strictly to avoid false positives, while longer words allow slightly looser matching.
 
 ---
 

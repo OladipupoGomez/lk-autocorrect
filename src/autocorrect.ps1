@@ -3,6 +3,7 @@ if (-not $env:AUTOCORRECT_DIR)    { $env:AUTOCORRECT_DIR    = "$env:USERPROFILE\
 if (-not $env:AUTOCORRECT_STORE)  { $env:AUTOCORRECT_STORE  = "$env:AUTOCORRECT_DIR\commands.txt" }
 if (-not $env:AUTOCORRECT_THRESHOLD) { $env:AUTOCORRECT_THRESHOLD = "2" }
 if (-not $env:AUTOCORRECT_AUTO)   { $env:AUTOCORRECT_AUTO   = "false" }
+if (-not $env:AUTOCORRECT_ENABLED) { $env:AUTOCORRECT_ENABLED = "true" }
 
 $_AC_MATCHER = "$env:AUTOCORRECT_DIR\matcher.py"
 
@@ -113,14 +114,22 @@ try:
 except (IOError, OSError, PermissionError):
     sys.exit(1)
 
-if best_dist <= threshold and best_cmd:
+# scale the allowed distance for longer words — a 3-edit difference
+# on an 8+ letter word (e.g. "trafform" -> "terraform") is a much
+# smaller relative change than the same 3 edits on a 5 letter word
+# (e.g. "xwine" -> "file"), so longer typos get one extra edit of
+# tolerance rather than using a single fixed threshold for everything
+effective_threshold = threshold
+if len(typo) >= 8:
+    effective_threshold = threshold + 1
+
+if best_dist <= effective_threshold and best_cmd:
     if not re.search(r'[;&|`$(){}<>!]', best_cmd):
         print("{}|||{}".format(best_cmd, best_dist))
 '@
         Set-Content -Path $_AC_MATCHER -Value $matcherContent -Encoding UTF8
     }
 
-    # write command store
     if (-not (Test-Path $env:AUTOCORRECT_STORE)) {
         $storeContent = @'
 # File system
@@ -178,6 +187,20 @@ git reset
 git tag
 git remote
 git init
+git config
+git show
+git blame
+git cherry-pick
+git revert
+git bisect
+git worktree
+git submodule
+git reflog
+git gc
+git clean
+git mv
+git rm
+git describe
 
 # Python
 python
@@ -200,6 +223,22 @@ scoop
 # Docker
 docker
 docker-compose
+docker build
+docker run
+docker ps
+docker images
+docker exec
+docker logs
+docker stop
+docker start
+docker rm
+docker rmi
+docker pull
+docker push
+docker network
+docker volume
+docker inspect
+docker compose
 
 # Kubernetes
 kubectl
@@ -215,7 +254,23 @@ kubectl create
 kubectl edit
 kubectl config
 kubectl cluster-info
+kubectl port-forward
+kubectl top
+kubectl label
+kubectl annotate
+kubectl patch
+kubectl cp
+kubectl run
+kubectl expose
+kubectl drain
+kubectl cordon
+kubectl taint
 helm
+helm install
+helm upgrade
+helm uninstall
+helm list
+helm repo
 minikube
 
 # Terraform
@@ -223,6 +278,17 @@ terraform
 terraform init
 terraform plan
 terraform apply
+terraform destroy
+terraform fmt
+terraform validate
+terraform output
+terraform state
+terraform import
+terraform workspace
+terraform refresh
+terraform show
+terraform taint
+terraform graph
 
 # IaC
 ansible
@@ -240,6 +306,9 @@ aws
 aws s3
 aws s3 cp
 aws s3 ls
+aws s3 sync
+aws s3 mv
+aws s3 rm
 aws ec2
 aws iam
 aws lambda
@@ -247,6 +316,12 @@ aws cloudformation
 aws ecr
 aws eks
 aws rds
+aws sts
+aws logs
+aws sns
+aws sqs
+aws dynamodb
+aws configure
 
 # Azure CLI
 az
@@ -260,6 +335,12 @@ az webapp
 az functionapp
 az network
 az keyvault
+az account
+az resource
+az deployment
+az role
+az ad
+az monitor
 
 # PowerShell specific
 Get-Help
@@ -288,6 +369,9 @@ if (-not $_AC_PYTHON) {
 # CommandNotFoundAction hook
 $ExecutionContext.InvokeCommand.CommandNotFoundAction = {
     param($name, $eventArgs)
+
+    # respect the on/off switch — if disabled, do nothing at all
+    if ($env:AUTOCORRECT_ENABLED -ne "true") { return }
 
     # skip empty, paths, flags
     if (-not $name) { return }
@@ -319,6 +403,32 @@ $ExecutionContext.InvokeCommand.CommandNotFoundAction = {
     $suggestedArgs   = @()
     if ($suggestionParts.Count -gt 1) { $suggestedArgs = $suggestionParts[1..($suggestionParts.Count-1)] }
 
+    # pre-correct the subcommand too if the corrected base is a wrapped
+    # command — folds a two-step correction like "gti statsu" into a
+    # single prompt showing "git status" instead of asking twice
+    $wrappedBases = @("git", "terraform", "kubectl", "docker", "aws", "az", "helm")
+    if ($suggestedArgs.Count -gt 0 -and $wrappedBases -contains $suggestedCmd) {
+        $subTyped = $suggestedArgs[0]
+        $subRest  = if ($suggestedArgs.Count -gt 1) { $suggestedArgs[1..($suggestedArgs.Count-1)] } else { @() }
+        $exactLine = "$suggestedCmd $subTyped"
+        $storeLines = Get-Content $env:AUTOCORRECT_STORE
+        if (-not ($storeLines -contains $exactLine)) {
+            $subList = $storeLines | Where-Object { $_ -like "$suggestedCmd *" } | ForEach-Object { $_.Substring($suggestedCmd.Length + 1) }
+            if ($subList) {
+                $subTmp = "$env:AUTOCORRECT_DIR\.tmp_precorrect_$PID"
+                $subList | Set-Content -Path $subTmp -Encoding UTF8
+                $subResult = & $_AC_PYTHON $_AC_MATCHER $subTyped $subTmp $env:AUTOCORRECT_THRESHOLD 2>$null
+                Remove-Item -Path $subTmp -ErrorAction SilentlyContinue
+                if ($subResult) {
+                    $subParts = $subResult -split "\|\|\|"
+                    if ($subParts[1] -ne "0") {
+                        $suggestedArgs = @($subParts[0]) + $subRest
+                    }
+                }
+            }
+        }
+    }
+
     $finalArgs  = $suggestedArgs + $argTokens
     $displayCmd = if ($finalArgs.Count -gt 0) { "$suggestedCmd $($finalArgs -join ' ')" } else { $suggestedCmd }
 
@@ -340,7 +450,8 @@ $ExecutionContext.InvokeCommand.CommandNotFoundAction = {
     if ($run) {
         # this is the officially supported mechanism — assigning a
         # script block here tells PowerShell to run THIS instead of
-        # throwing CommandNotFoundException.
+        # throwing CommandNotFoundException. Manual invocation plus
+        # StopSearch is not enough; this property is required.
         $capturedCmd  = $suggestedCmd
         $capturedArgs = $finalArgs
         $eventArgs.CommandScriptBlock = {
@@ -352,8 +463,110 @@ $ExecutionContext.InvokeCommand.CommandNotFoundAction = {
     }
 }
 
-# Public functions
+# Subcommand correction wrappers
+# CommandNotFoundAction only fires when PowerShell can't find the BASE
+# command at all — it never fires for "git psuh" or "terraform plna"
+# since git/terraform genuinely exist and are handed the typo directly.
+# To catch these we define a PowerShell function with the same name as
+# each wrapped command, which intercepts every call, checks the
+# subcommand, and calls through to the real executable.
 
+function _ac_wrap_subcommand {
+    param(
+        [string]$RealPath,
+        [string]$Base,
+        [string[]]$Args
+    )
+
+    $sub = if ($Args.Count -gt 0) { $Args[0] } else { $null }
+    $rest = if ($Args.Count -gt 1) { $Args[1..($Args.Count-1)] } else { @() }
+
+    # no subcommand, or looks like a flag — pass straight through
+    if (-not $sub -or $sub.StartsWith("-")) {
+        & $RealPath @Args
+        return
+    }
+
+    # respect the on/off switch
+    if ($env:AUTOCORRECT_ENABLED -ne "true") {
+        & $RealPath @Args
+        return
+    }
+
+    # exact match already — nothing to correct
+    $storeLines = Get-Content $env:AUTOCORRECT_STORE
+    $exactLine = "$Base $sub"
+    if ($storeLines -contains $exactLine) {
+        & $RealPath @Args
+        return
+    }
+
+    # block injection characters in the subcommand
+    if ($sub -match '[;&|`$(){}<>"]') {
+        & $RealPath @Args
+        return
+    }
+
+    $subList = $storeLines | Where-Object { $_ -like "$Base *" } | ForEach-Object { $_.Substring($Base.Length + 1) }
+    if (-not $subList) {
+        & $RealPath @Args
+        return
+    }
+
+    $tmpStore = "$env:AUTOCORRECT_DIR\.tmp_subcmds_$PID"
+    $subList | Set-Content -Path $tmpStore -Encoding UTF8
+    $result = & $_AC_PYTHON $_AC_MATCHER $sub $tmpStore $env:AUTOCORRECT_THRESHOLD 2>$null
+    Remove-Item -Path $tmpStore -ErrorAction SilentlyContinue
+
+    if (-not $result) {
+        & $RealPath @Args
+        return
+    }
+
+    $parts      = $result -split "\|\|\|"
+    $suggestion = $parts[0]
+    $dist       = $parts[1]
+    if ($dist -eq "0") {
+        & $RealPath @Args
+        return
+    }
+
+    $corrected = "$Base $suggestion"
+    if ($rest.Count -gt 0) { $corrected = "$corrected $($rest -join ' ')" }
+
+    Write-Host "[lk-autocorrect] " -ForegroundColor Yellow -NoNewline
+    Write-Host "Did you mean: " -ForegroundColor Yellow -NoNewline
+    Write-Host $corrected -ForegroundColor Cyan -NoNewline
+    Write-Host "?"
+
+    $answer = _ac_yellow_prompt "Run it? [y/N]"
+    if ($answer -match "^[Yy]$") {
+        & $RealPath $suggestion @rest
+    } else {
+        & $RealPath @Args
+    }
+}
+
+# generate a wrapper function for each base command that has multi-word
+# entries in the store (git, terraform, kubectl, docker, aws, az, helm)
+foreach ($_ac_base in @("git", "terraform", "kubectl", "docker", "aws", "az", "helm")) {
+    $storeLines = Get-Content $env:AUTOCORRECT_STORE -ErrorAction SilentlyContinue
+    if ($storeLines -and ($storeLines | Where-Object { $_ -like "$_ac_base *" })) {
+        $realCmd = Get-Command $_ac_base -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($realCmd) {
+            $realPath = $realCmd.Source
+            $baseCaptured = $_ac_base
+            $funcBody = {
+                param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
+                _ac_wrap_subcommand -RealPath $realPath -Base $baseCaptured -Args $Args
+            }.GetNewClosure()
+            Set-Item -Path "function:global:$_ac_base" -Value $funcBody
+        }
+    }
+}
+Remove-Variable _ac_base -ErrorAction SilentlyContinue
+
+# Public functions
 function ac-add {
     param([string]$cmd)
     if (-not $cmd) { Write-Host "Usage: ac-add [command]"; return }
@@ -398,19 +611,40 @@ function ac-test {
     }
 }
 
+# ac-off — disable autocorrect for the current PowerShell session
+# without uninstalling. Add '$env:AUTOCORRECT_ENABLED = "false"' to
+# your $PROFILE (before the source line) to disable permanently.
+function ac-off {
+    $env:AUTOCORRECT_ENABLED = "false"
+    _ac_yellow "Autocorrect disabled for this session."
+    _ac_yellow "Run 'ac-on' to re-enable, or add this to your `$PROFILE to disable permanently:"
+    Write-Host '    $env:AUTOCORRECT_ENABLED = "false"'
+}
+
+# ac-on — re-enable autocorrect for the current PowerShell session
+function ac-on {
+    $env:AUTOCORRECT_ENABLED = "true"
+    _ac_green "Autocorrect enabled."
+}
+
 function ac-help {
+    $statusLine = if ($env:AUTOCORRECT_ENABLED -eq "true") { "enabled" } else { "disabled" }
     Write-Host ""
     Write-Host "  lk-autocorrect - fuzzy CLI command correction"
+    Write-Host "  Status: $statusLine"
     Write-Host ""
     Write-Host "  Commands:"
     Write-Host "    ac-add [cmd]      Add a command to the store"
     Write-Host "    ac-remove [cmd]   Remove a command from the store"
     Write-Host "    ac-list           List all commands in the store"
     Write-Host "    ac-test [typo]    Preview what a typo would match"
+    Write-Host "    ac-off            Disable autocorrect for this session"
+    Write-Host "    ac-on             Re-enable autocorrect"
     Write-Host "    ac-help           Show this help"
     Write-Host ""
     Write-Host "  Config (set in your PowerShell profile):"
     Write-Host "    " + '$env:AUTOCORRECT_THRESHOLD = "2"'
     Write-Host "    " + '$env:AUTOCORRECT_AUTO = "true"'
+    Write-Host "    " + '$env:AUTOCORRECT_ENABLED = "true"'
     Write-Host ""
 }
