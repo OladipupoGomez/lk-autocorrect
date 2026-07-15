@@ -16,7 +16,7 @@ if sys.platform == "win32":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 # Constants
-VERSION      = "1.4.0b2"
+VERSION      = "1.4.0"
 PACKAGE_DIR  = Path(__file__).parent
 
 # Platform detection
@@ -299,7 +299,8 @@ def uninstall():
         print(f"{TAG} Removed config directory")
 
     shutil.rmtree(INSTALL_DIR, ignore_errors=True)
-    print(f"\n{OK} Uninstalled. Restart your shell.\n")
+    print(f"\n{OK} Uninstalled.\n")
+    print(f"{TAG} open a NEW terminal window to complete the uninstall.")
 
 # Status
 def status():
@@ -409,6 +410,9 @@ def upgrade(version=None, include_pre=False):
             upgrade_cmd.append("--pre")
 
     print(f"{TAG} Running: {bold(' '.join(upgrade_cmd))}\n")
+    sys.stdout.flush()  # ensure output is written before the subprocess runs,
+                         # otherwise buffered print() calls can appear AFTER
+                         # the subprocess's own output on some platforms/terminals
 
     try:
         result = subprocess.run(upgrade_cmd)
@@ -426,6 +430,7 @@ def upgrade(version=None, include_pre=False):
         sys.exit(1)
 
     print(f"\n{OK} Package upgrade complete. Refreshing shell files...\n")
+    sys.stdout.flush()
 
     # re-exec as a brand new process so the freshly installed code
     # (not the stale copy already loaded in this process) runs the install.
