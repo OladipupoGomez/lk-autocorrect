@@ -16,7 +16,7 @@ if sys.platform == "win32":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 # Constants
-VERSION      = "1.4.0"
+VERSION      = "1.4.1"
 PACKAGE_DIR  = Path(__file__).parent
 
 # Platform detection
@@ -484,7 +484,10 @@ def main():
     # Python version warning
     _PY = sys.version_info
     if _PY < (3, 11):
-        print(f"{yellow('[lk-autocorrect]')} Python {_PY.major}.{_PY.minor} is end-of-life or approaching it. lk-autocorrect works but consider upgrading.")
+        print(f"{yellow('[lk-autocorrect]')} Python {_PY.major}.{_PY.minor} is end-of-life or approaching it.")
+        print(f"{yellow('[lk-autocorrect]')} lk-autocorrect requires Python 3.11+ for the latest features.")
+        print(f"{yellow('[lk-autocorrect]')} Upgrade Python, then reinstall: pip install --upgrade lk-autocorrect")
+        print(f"{yellow('[lk-autocorrect]')} See: https://github.com/OladipupoGomez/lk-autocorrect#python-version\n")
 
     args = sys.argv[1:]
     cmd  = args[0] if args else None

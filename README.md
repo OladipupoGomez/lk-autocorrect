@@ -374,6 +374,28 @@ lk-autocorrect upgrade [version]
 
 This works the same way on macOS, Linux, and Windows.
 
+### other upgrade commands (alternative)
+
+Instead of using 
+`lk-autocorrect upgrade`:
+
+**macOS / Linux (pipx):**
+```bash
+pipx upgrade lk-autocorrect
+```
+
+**macOS / Linux (pip):**
+```bash
+pip install --upgrade lk-autocorrect
+```
+
+**Windows (PowerShell):**
+```powershell
+pip install --upgrade lk-autocorrect
+```
+
+After a manual upgrade, run `lk-autocorrect install` once to refresh your shell files with the new version.
+
 ---
 
 ## Uninstall

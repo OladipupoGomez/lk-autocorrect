@@ -2,6 +2,16 @@
 
 All notable changes and future updates will be documented here.
 
+## [1.4.1] — 2026-07-16
+
+A small follow-up release with clearer guidance for a couple of edge cases.
+
+### What's new
+- The README now shows how to upgrade manually with plain `pip` or `pipx` commands, as an alternative to `lk-autocorrect upgrade`
+- If you're on an older Python version, you'll now get a clearer message explaining that lk-autocorrect needs Python 3.11+, along with the exact command to upgrade and a link to more help
+
+---
+
 ## [1.4.0] — 2026-07-15
 
 This release makes autocorrect much smarter, and Windows now works just as well as Mac and Linux.
