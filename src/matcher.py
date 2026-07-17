@@ -88,6 +88,12 @@ try:
 except (IOError, OSError, PermissionError):
     sys.exit(1)
 
-if best_dist <= threshold and best_cmd:
+# scale the allowed distance for longer words — see autocorrect.sh
+# for the full idea behind this
+effective_threshold = threshold
+if len(typo) >= 8:
+    effective_threshold = threshold + 1
+
+if best_dist <= effective_threshold and best_cmd:
     if not re.search(r'[;&|`$(){}<>!]', best_cmd):
         print("{}|||{}".format(best_cmd, best_dist))

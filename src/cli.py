@@ -16,7 +16,7 @@ if sys.platform == "win32":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 # Constants
-VERSION      = "1.3.0"
+VERSION      = "1.4.1"
 PACKAGE_DIR  = Path(__file__).parent
 
 # Platform detection
@@ -195,6 +195,18 @@ def _install_unix():
     print(f"    {bold(f'source {rc}')}\n")
     print(f"  Then try: {bold('gti status')}\n")
 
+    # if the lk-autocorrect CLI itself isn't resolvable, guide the user
+    # to add pip's user script directory to PATH (common on macOS where
+    # `pip install --user` puts scripts in ~/Library/Python/x.y/bin,
+    # which is not on PATH by default)
+    if not shutil.which("lk-autocorrect"):
+        import sysconfig
+        user_bin = Path(sysconfig.get_path("scripts", f"{os.name}_user"))
+        print(f"{TAG} If lk-autocorrect is not found after install, add it to PATH:\n")
+        path_cmd = f'export PATH="{user_bin}:$PATH"'
+        print(f"    {bold(path_cmd)}\n")
+        print(f"  Add this line to {rc} to make it permanent, then restart your shell.\n")
+
 def _install_windows():
     shell_name, ps7_profile, ps5_profile = detect_shell()
     print(f"{TAG} Shell:       {bold('PowerShell')}")
@@ -287,7 +299,8 @@ def uninstall():
         print(f"{TAG} Removed config directory")
 
     shutil.rmtree(INSTALL_DIR, ignore_errors=True)
-    print(f"\n{OK} Uninstalled. Restart your shell.\n")
+    print(f"\n{OK} Uninstalled.\n")
+    print(f"{TAG} open a NEW terminal window to complete the uninstall.")
 
 # Status
 def status():
@@ -397,6 +410,9 @@ def upgrade(version=None, include_pre=False):
             upgrade_cmd.append("--pre")
 
     print(f"{TAG} Running: {bold(' '.join(upgrade_cmd))}\n")
+    sys.stdout.flush()  # ensure output is written before the subprocess runs,
+                         # otherwise buffered print() calls can appear AFTER
+                         # the subprocess's own output on some platforms/terminals
 
     try:
         result = subprocess.run(upgrade_cmd)
@@ -414,6 +430,7 @@ def upgrade(version=None, include_pre=False):
         sys.exit(1)
 
     print(f"\n{OK} Package upgrade complete. Refreshing shell files...\n")
+    sys.stdout.flush()
 
     # re-exec as a brand new process so the freshly installed code
     # (not the stale copy already loaded in this process) runs the install.
@@ -446,7 +463,7 @@ def help():
   {bold('lk-autocorrect uninstall')}    Remove from system
   {bold('lk-autocorrect upgrade')}          Upgrade to the latest stable version
   {bold('lk-autocorrect upgrade --pre')}    Upgrade to the latest beta/alpha
-  {bold('lk-autocorrect upgrade 1.3.0b4')}  Upgrade to a specific version
+  {bold('lk-autocorrect upgrade [version]')}  Upgrade to a specific version
   {bold('lk-autocorrect status')}       Show installation status
   {bold('lk-autocorrect verify')}       Check file integrity
   {bold('lk-autocorrect help')}         Show this help
@@ -467,7 +484,10 @@ def main():
     # Python version warning
     _PY = sys.version_info
     if _PY < (3, 11):
-        print(f"{yellow('[lk-autocorrect]')} Python {_PY.major}.{_PY.minor} is end-of-life or approaching it. lk-autocorrect works but consider upgrading.")
+        print(f"{yellow('[lk-autocorrect]')} Python {_PY.major}.{_PY.minor} is end-of-life or approaching it.")
+        print(f"{yellow('[lk-autocorrect]')} lk-autocorrect requires Python 3.11+ for the latest features.")
+        print(f"{yellow('[lk-autocorrect]')} Upgrade Python, then reinstall: pip install --upgrade lk-autocorrect")
+        print(f"{yellow('[lk-autocorrect]')} See: https://github.com/OladipupoGomez/lk-autocorrect#python-version\n")
 
     args = sys.argv[1:]
     cmd  = args[0] if args else None

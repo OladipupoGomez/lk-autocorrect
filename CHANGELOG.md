@@ -2,6 +2,61 @@
 
 All notable changes and future updates will be documented here.
 
+## [1.4.1] — 2026-07-16
+
+A small follow-up release with clearer guidance for a couple of edge cases.
+
+### What's new
+- The README now shows how to upgrade manually with plain `pip` or `pipx` commands, as an alternative to `lk-autocorrect upgrade`
+- If you're on an older Python version, you'll now get a clearer message explaining that lk-autocorrect needs Python 3.11+, along with the exact command to upgrade and a link to more help
+
+---
+
+## [1.4.0] — 2026-07-15
+
+This release makes autocorrect much smarter, and Windows now works just as well as Mac and Linux.
+
+### What's new
+- Autocorrect now fixes typos in subcommands too, not just the main command. For example, `git psuh` becomes `git push`, and `trafform fmt` becomes `terraform fmt`. This works for git, terraform, kubectl, docker, aws, az, and helm
+- If you typo both the command AND the subcommand at once (like `gti statsu`), it fixes both together and only asks you once instead of twice
+- Windows now has all the same features as Mac and Linux, including the new subcommand fixing
+- New `ac-off` and `ac-on` commands — turn autocorrect off temporarily without uninstalling it, then turn it back on whenever you want
+- Longer command names now get a little more leeway when matching typos, since a few wrong letters matter less in a long word than a short one
+- If lk-autocorrect isn't found after installing, you'll now get clear instructions to fix it, on both Windows and Mac/Linux
+- Added a lot more commands to the default list so more typos get caught out of the box
+- Uninstalling now reminds you to open a new terminal window so everything is fully removed
+
+### Fixed (PowerShell, found during beta testing)
+- Subcommand wrapper's temporary file was being created via system `mktemp` (typically `/tmp`), which `matcher.py`'s path validation silently rejected since it only allows reads from inside `~/.config/lk-autocorrect/`. Fixed by creating the temp file inside `AUTOCORRECT_DIR` instead — this was the root cause of subcommand correction silently doing nothing
+- `CommandScriptBlock` execution bug — calling a corrected command by bare name (e.g. `git`) could resolve to lk-autocorrect's own subcommand-wrapper function instead of the real executable, silently dropping arguments. Fixed by resolving the actual `.exe` path via `Get-Command -CommandType Application` before executing
+- Phantom "Did you mean" prompts firing during normal PowerShell startup — caused by PowerShell's own internal command resolution (e.g. trying `get-aws`, `get-helm` as verb-noun guesses when an application isn't installed) also triggering our `CommandNotFoundAction` handler. Fixed by checking `$eventArgs.CommandOrigin -eq "Runspace"`, so only commands the user actually typed are ever processed
+- `matcher.py` and the command store are now refreshed automatically on every source — previously an existing install would keep an old, incomplete store forever since files were only written if missing. The store now merges in any new default commands on top of existing installs, preserving anything added via `ac-add` or removed via `ac-remove`
+- Output ordering bug in `lk-autocorrect upgrade` — buffered `print()` output could appear after a spawned subprocess's output, making the old version banner appear to print after the new version had already run. Fixed with explicit `sys.stdout.flush()` calls before each subprocess invocation
+
+### Security
+- Updated a build tool (`setuptools`) to patch a known security issue
+
+---
+
+## [1.4.0-beta2] — 2026-07-14
+
+### Added
+- Subcommand typo correction — `git`, `terraform`, `kubectl`, `docker`, `aws`, `az`, and `helm` now correct typos in their subcommands, not just the base command (e.g. `git psuh` → `git push`, `trafform fmt` → `terraform fmt`)
+- Windows/PowerShell parity — `autocorrect.ps1` now has the same subcommand correction, `ac-off`/`ac-on` toggle, length-aware matching, and combined single-prompt correction as `autocorrect.sh`. PowerShell subcommand wrapping uses `function:global:` to shadow each wrapped command, resolving the real `.exe` path once via `Get-Command -CommandType Application` to avoid recursive calls
+- Combined single-prompt correction — when both the base command and the subcommand are mistyped at once (e.g. `gti statsu`), both are corrected together and the user is only asked once, instead of seeing two separate confirmation prompts
+- Significantly expanded the default command store — git, docker, kubectl/helm, terraform, aws, and az now each ship with 10–18 subcommands instead of 3–4, making subcommand correction useful out of the box
+- `ac-off` / `ac-on` — disable or re-enable autocorrect for the current shell session without uninstalling; `ac-help` now shows live enabled/disabled status
+- `AUTOCORRECT_ENABLED` environment variable — set to `false` in your shell rc file to disable autocorrect permanently without removing it
+- Length-aware fuzzy matching — words of 8+ characters get one extra edit of tolerance (`threshold + 1`), since a 3-edit difference is proportionally much smaller on a long word than a short one
+- macOS/Linux PATH guidance — `lk-autocorrect install` now detects if the CLI isn't resolvable on PATH and prints the exact `export PATH=...` command to fix it, computed via Python's `sysconfig`, matching the guidance Windows already had
+
+### Fixed
+- Subcommand wrapper's temporary file was being created via system `mktemp` (typically `/tmp`), which `matcher.py`'s path validation silently rejected since it only allows reads from inside `~/.config/lk-autocorrect/`. Fixed by creating the temp file inside `AUTOCORRECT_DIR` instead — this was the root cause of subcommand correction silently doing nothing
+- Trailing space in the correction prompt when a corrected subcommand had no additional arguments (e.g. `git push ?` → `git push?`)
+
+### Security
+- Pinned `setuptools>=83.0.0,<85` in build requirements and CI (`PYSEC-2026-3447`), fixed in `83.0.0`. Upper bound added to avoid unexpected breakage from future setuptools releases
+
 ## [1.3.0] — 2026-07-14
 
 Stable release consolidating all Windows support work from the beta cycle (`1.3.0-beta2` through `1.3.0-beta6`).
