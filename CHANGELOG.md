@@ -2,6 +2,18 @@
 
 All notable changes and future updates will be documented here.
 
+## [1.4.2] — 2026-07-17
+
+A quick fix for a Windows issue that slipped through.
+
+### What's new
+- Fixed a bug where PowerShell users could sometimes see a strange, incorrect suggestion pop up right when opening a new terminal — this is now fully resolved
+
+### Fixed
+- The `CommandOrigin` filter meant to prevent PowerShell's own internal command lookups (e.g. verb-noun guesses like `get-aws`, `get-helm`) from being mistaken for real typos was written but not actually included in the `1.4.1` release. This release includes it correctly
+
+---
+
 ## [1.4.1] — 2026-07-16
 
 A small follow-up release with clearer guidance for a couple of edge cases.
@@ -9,8 +21,6 @@ A small follow-up release with clearer guidance for a couple of edge cases.
 ### What's new
 - The README now shows how to upgrade manually with plain `pip` or `pipx` commands, as an alternative to `lk-autocorrect upgrade`
 - If you're on an older Python version, you'll now get a clearer message explaining that lk-autocorrect needs Python 3.11+, along with the exact command to upgrade and a link to more help
-
----
 
 ## [1.4.0] — 2026-07-15
 

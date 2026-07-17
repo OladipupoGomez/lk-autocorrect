@@ -370,6 +370,10 @@ if (-not $_AC_PYTHON) {
 $ExecutionContext.InvokeCommand.CommandNotFoundAction = {
     param($name, $eventArgs)
 
+    # only handle commands the user actually typed — PowerShell
+    # sometimes fires this same event internally, which we ignore
+    if ($eventArgs.CommandOrigin -ne "Runspace") { return }
+
     # respect the on/off switch — if disabled, do nothing at all
     if ($env:AUTOCORRECT_ENABLED -ne "true") { return }
 
@@ -403,13 +407,14 @@ $ExecutionContext.InvokeCommand.CommandNotFoundAction = {
     $suggestedArgs   = @()
     if ($suggestionParts.Count -gt 1) { $suggestedArgs = $suggestionParts[1..($suggestionParts.Count-1)] }
 
-    # pre-correct the subcommand too if the corrected base is a wrapped
+  # pre-correct the subcommand too if the corrected base is a wrapped
     # command — folds a two-step correction like "gti statsu" into a
     # single prompt showing "git status" instead of asking twice
     $wrappedBases = @("git", "terraform", "kubectl", "docker", "aws", "az", "helm")
-    if ($suggestedArgs.Count -gt 0 -and $wrappedBases -contains $suggestedCmd) {
-        $subTyped = $suggestedArgs[0]
-        $subRest  = if ($suggestedArgs.Count -gt 1) { $suggestedArgs[1..($suggestedArgs.Count-1)] } else { @() }
+    $candidateArgs = $suggestedArgs + $argTokens
+    if ($candidateArgs.Count -gt 0 -and $wrappedBases -contains $suggestedCmd) {
+        $subTyped = $candidateArgs[0]
+        $subRest  = if ($candidateArgs.Count -gt 1) { $candidateArgs[1..($candidateArgs.Count-1)] } else { @() }
         $exactLine = "$suggestedCmd $subTyped"
         $storeLines = Get-Content $env:AUTOCORRECT_STORE
         if (-not ($storeLines -contains $exactLine)) {
@@ -422,14 +427,14 @@ $ExecutionContext.InvokeCommand.CommandNotFoundAction = {
                 if ($subResult) {
                     $subParts = $subResult -split "\|\|\|"
                     if ($subParts[1] -ne "0") {
-                        $suggestedArgs = @($subParts[0]) + $subRest
+                        $candidateArgs = @($subParts[0]) + $subRest
                     }
                 }
             }
         }
     }
 
-    $finalArgs  = $suggestedArgs + $argTokens
+    $finalArgs  = $candidateArgs
     $displayCmd = if ($finalArgs.Count -gt 0) { "$suggestedCmd $($finalArgs -join ' ')" } else { $suggestedCmd }
 
     # tag in yellow, "Did you mean:" in yellow, the command itself in cyan
@@ -452,7 +457,11 @@ $ExecutionContext.InvokeCommand.CommandNotFoundAction = {
         # script block here tells PowerShell to run THIS instead of
         # throwing CommandNotFoundException. Manual invocation plus
         # StopSearch is not enough; this property is required.
-        $capturedCmd  = $suggestedCmd
+        # resolve the real .exe path since our own functions below
+        # shadow commands like git, terraform, etc.
+        $realExe = (Get-Command $suggestedCmd -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+        if (-not $realExe) { $realExe = $suggestedCmd }
+        $capturedCmd  = $realExe
         $capturedArgs = $finalArgs
         $eventArgs.CommandScriptBlock = {
             & $capturedCmd @capturedArgs
